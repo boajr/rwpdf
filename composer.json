@@ -1,0 +1,20 @@
+{
+    "name": "boajr/rwpdf",
+    "description": "A class for create/modify/merge pdf",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Piero Boato"
+        }
+    ],
+    "require": {
+        "php": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Boajr\\PDF\\": "src"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
