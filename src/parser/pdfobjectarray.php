@@ -12,7 +12,7 @@ class PDFObjectArray implements IPDFObject, ArrayAccess, Countable, Iterator
     use LinkedObject;
 
     /**
-     * @var Array $obj_num;
+     * @var array $array;
      */
     private $array;
 

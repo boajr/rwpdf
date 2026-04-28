@@ -35,7 +35,7 @@ class GenericDictionary extends BaseDictionary
         } else {
             $e = new Entry($this->pdf, $this->content_type, false, 1000, 999999);
             try {
-                $e->setValue($value, true);
+                $e->setValue($value);
             } catch (EntrySetValueException $ex) {
                 throw new \Exception("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': ' . $ex->getMessage());
             }

@@ -17,7 +17,7 @@ class BaseDictionary implements IBaseObject
 
     private int $objNumber = 0;
     private int $objOffset = 0;
-    protected $entryList = [];
+    protected array $entryList = [];
 
     
     protected function dictionaryName(): string
@@ -147,8 +147,8 @@ class BaseDictionary implements IBaseObject
     }
 
 
-
-    public function getArray(?IPDFObject $src, string $name): ?PDFObjectArray
+    
+    public function getArray(PDFObjectDictionary $src, string $name): ?PDFObjectArray
     {
         if (!$src || !$src[$name])
             return null;
@@ -163,7 +163,7 @@ class BaseDictionary implements IBaseObject
         throw new PDFException("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': wrong type.');
     }
 
-    public function getInteger(?IPDFObject $src, string $name): ?int
+    public function getInteger(PDFObjectDictionary $src, string $name): ?int
     {
         if (!$src || !$src[$name])
             return null;
@@ -178,7 +178,7 @@ class BaseDictionary implements IBaseObject
         throw new PDFException("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': wrong type.');
     }
 
-    public function getRectangle(?IPDFObject $src, string $name): ?Rectangle
+    public function getRectangle(PDFObjectDictionary $src, string $name): ?Rectangle
     {
         if (!$src || !$src[$name])
             return null;
@@ -193,7 +193,7 @@ class BaseDictionary implements IBaseObject
         throw new PDFException("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': wrong type.');
     }
 
-    public function getResources(?IPDFObject $src, string $name): ?ResourcesDictionary
+    public function getResources(PDFObjectDictionary $src, string $name): ?ResourcesDictionary
     {
         if (!$src || !$src[$name])
             return null;

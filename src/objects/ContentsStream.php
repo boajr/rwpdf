@@ -113,12 +113,12 @@ class ContentsStream extends Stream
     /**
      * tengo traccia di quali procSet utilizzo nella pagina
      */
-    protected $procSet = 0;
+    protected int $procSet = 0;
 
     /**
      * elenco di tutti gli operators che compongono la pagina
      */
-    protected $operators = [];
+    protected array $operators = [];
 
     protected IResourcesWriter $resourcesWriter;
     protected GraphicsState $graphicsState;
@@ -172,7 +172,7 @@ class ContentsStream extends Stream
         }
     }
 
-    public function AppendOperators(string $operator, ...$parameters): void
+    public function AppendOperators(string $operator, mixed ...$parameters): void
     {
         $p = null;
 

@@ -14,7 +14,7 @@ abstract class BaseArray implements IBaseObject
 
     protected array $content_type;
 
-    protected $array = [];
+    protected array $array = [];
 
     protected function arrayName(): string
     {

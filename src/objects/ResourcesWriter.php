@@ -5,32 +5,38 @@ namespace Boajr\PDF\Objects;
 use ReflectionMethod;
 
 
+/**
+ * @mixin BaseDictionary
+ * @property \Boajr\PDF\PDF $pdf 
+ * 
+ * @mixin IResourcesWriter
+ * @method   int getProcSet()
+ * 
+ * 
+ * 
+ * @property mixed $Resources
+ * 
+ * 
+ */
 trait ResourcesWriter
 {
     /**
+     * possibili valori che possono essere inseriti nel ProcSet
+     */
+    private const procSetNames = ['/PDF', '/Text', '/ImageB', '/ImageC', '/ImageI'];
+
+
+
+    /**
      * I valori di default che possono essere cambiati durante la scrittura della pagina
      */
-    public $graphicsState = null;
-
-    /**
-     * Dizionario da popolare con le risorse utilizzate dai contens stream
-     */
-    private ?ResourcesDictionary $resourcesDict = null;
-
-    /**
-     * flag che memorizza quali proc set devono essere inclusi nella risorsa finale
-     */
-    public int $procSet = 0;
+    public ?GraphicsState $graphicsState = null;
 
     /**
      * array che memorizza i font usati dai contents stream
      */
     private ?ResourcesDictionary_FontDictionary $FontDictionary = null;
 
-    /**
-     * possibili valori che possono essere inseriti nel ProcSet
-     */
-    private const procSetNames = ['/PDF', '/Text', '/ImageB', '/ImageC', '/ImageI'];
 
 
 
@@ -65,8 +71,7 @@ trait ResourcesWriter
         $ctx = hash_init('crc32');
 
         // aggiunge il valore del procSet
-        $this->procSet = $this->getProcSet();
-        hash_update($ctx, $this->procSet);
+        hash_update($ctx, $this->getProcSet());
 
         // aggiunge tutti gli id dei font (ordinati in modo crescente)...
         $a = $this->FontDictionary->getDictionaryKeys();
@@ -84,8 +89,9 @@ trait ResourcesWriter
 
     private function getWriters(): array
     {
-        if (!$this->getIResourcesWritersMethod)
+        if (!$this->getIResourcesWritersMethod) {
             $this->getIResourcesWritersMethod = new ReflectionMethod($this->pdf, 'getIResourcesWriters');
+        }
         return $this->getIResourcesWritersMethod->Invoke($this->pdf, $this->getResourcesHash());
     }
 
@@ -186,10 +192,11 @@ trait ResourcesWriter
             $out .= '/Font' . $this->FontDictionary->getInlineObject($ver);
 
         // scrivo ProcSet se ho almeno una voce e se la versione è inferiore alla 2.0
-        if ($this->procSet && $ver < 2000) {
+        $procSet = $this->getProcSet();
+        if ($procSet && $ver < 2000) {
             $out .= '/ProcSet[';
             for ($i = 0; $i < 5; ++$i)
-                if ($this->procSet & (1 << $i))
+                if ($procSet & (1 << $i))
                     $out .= static::procSetNames[$i];
             $out .= ']';
         }

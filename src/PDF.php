@@ -12,6 +12,7 @@ use Boajr\PDF\Objects\PagesDictionary;
 use Boajr\PDF\Objects\Rectangle;
 use Boajr\PDF\Parser\DataStream;
 use Boajr\PDF\Parser\IPDFObject;
+use Boajr\PDF\Parser\PDFObjectDictionary;
 use Stringable;
 use Throwable;
 
@@ -24,7 +25,7 @@ class PDF implements Stringable
         'cm' => 72 / 2.54,
         'in' => 72
     ];
-    protected $k = 72 / 25.4;
+    protected float $k = 72 / 25.4;
 
     protected const orientation = [
         'P' => true,
@@ -40,10 +41,16 @@ class PDF implements Stringable
         'letter' => [612, 792],
         'legal' => [612, 1008]
     ];
+    protected array $defPageSize = [15120 / 25.4, 21384 / 25.4];   // 'a4'
 
-    protected $defPageSize = [15120 / 25.4, 21384 / 25.4];   // 'a4'
+    protected const coreFonts = ['courier', 'helvetica', 'times', 'symbol', 'zapfdingbats'];
 
-    protected $curPage = null;
+
+
+
+
+
+
 
 
 
@@ -71,6 +78,11 @@ class PDF implements Stringable
     protected array $pages = [];
 
     /**
+     * pagina su cui si sta scrivendo/disegnando
+     */
+    protected ?PageDictionary $curPage = null;
+
+    /**
      * internalState che verrà trasmesso in fase di scrittura delle pagine
      */
     protected InternalState $internalState;
@@ -80,6 +92,11 @@ class PDF implements Stringable
      * utilizzano quella risorsa. Serve in output per eliminare le risorse doppie.
      */
     protected array $resources = [];
+
+    /**
+     * directory di base dove cercare i file dei font da caricare
+     */
+    protected string $fontpath = __DIR__ . '/font/';
 
     /**
      * array con tutti i font usati nelle varie pagine e oggetti
@@ -95,6 +112,9 @@ class PDF implements Stringable
         $this->internalState = new InternalState;
         $this->internalState->lineCap = 2;            // mi adeguo al "2 J" di fpdf
         $this->internalState->lineWidth = 72 / 127;   // mi adeguo al "0.57 w" di fpdf (0.2mm = 0.2 * 72 / 25.4)
+
+        if (defined('FPDF_FONTPATH'))
+            $this->fontpath = FPDF_FONTPATH;
 
         // se non ho un file da leggere, creo un pdf vuoto
         if (!$file_data_or_orientation || $this->toOrientation($file_data_or_orientation)) {
@@ -164,7 +184,7 @@ class PDF implements Stringable
     /**
      * Legge tutte le strutture con i riferimenti agli oggetti del PDF e restituisce l'elenco completo
      */
-    private function getMergedXRef(int $start): IPDFObject
+    private function getMergedXRef(int $start): PDFObjectDictionary
     {
         if (!$this->src) {
             throw new PDFException('DataStream already dismissed');
@@ -222,17 +242,17 @@ class PDF implements Stringable
 
             // a questo punto ho letto tutte le entry dell'xref, non mi resta che leggere il trailer (che è un dizionario)
             $trailer = $this->src->ReadObjectData('startxref');
-            if ($trailer->GetType() !== IPDFObject::TYPE_DICTIONARY) {
+            if ($trailer->GetType() !== IPDFObject::TYPE_DICTIONARY)
                 throw new PDFException('invalid trailer: no dictionary found');
-            }
+            /** @var PDFObjectDictionary $trailer */
         } else {
             $obj = $this->src->ReadObject($start);
-            if ($obj->GetType() !== IPDFObject::TYPE_STREAM) {
+            if ($obj->GetType() !== IPDFObject::TYPE_STREAM)
                 throw new PDFException('invalid XRefObj: no stream found');
-            }
+            /** @var PDFObjectDictionary $obj */
 
             $type = $obj['Type'];
-            if (!$type || $type->GetFinalValue() !== 'XRef') {
+            if (!$type || $type->GetFinalType() !== IPDFObject::TYPE_STRING || $type->GetFinalValue() !== 'XRef') {
                 throw new PDFException('invalid XRefObj: dictionary Type field isn\'t \'XRef\'');
             }
 
@@ -276,11 +296,7 @@ class PDF implements Stringable
                 $wObj[2]->GetFinalValue()
             ];
 
-            /**
-             * @var PDFObjectDictionary $obj
-             */
             $str = $obj->GetStream(true);
-
             $len = strlen($str);
             if ($len % ($w[0] + $w[1] + $w[2]) != 0) {
                 throw new PDFException('invalid XRefObj: data block has an incorrect size');
@@ -312,7 +328,7 @@ class PDF implements Stringable
             }
 
             // creo il trailer copiando gli elementi dall'XRefObj appena estratto
-            $trailer = new Parser\PDFObjectDictionary();
+            $trailer = new PDFObjectDictionary();
             foreach ($obj as $k => $v) {
                 if (in_array($k, ['Size', 'Prev', 'Root', 'Encrypt', 'Info', 'ID', 'XRefStm'])) {
                     $trailer[$k] = $v;
@@ -711,8 +727,7 @@ class PDF implements Stringable
     /**
      * Set the current page rotation
      * 
-     * @param float|string|null $width  - page width or an orientation ('P', 'L') or a page format ('a4', 'letter' and so on)
-     * @param float|string|null $height - page height or an orientation ('P', 'L') or a page format ('a4', 'letter' and so on)
+     * @param int $rotate - page rotation, shall be a multiple of 90
      * 
      * @throws PDFException
      */
@@ -977,5 +992,106 @@ Write - stampare testo continuo
             $this->curPage->Stroke();
         else
             throw new PDFException('invalid parameters: unknown style.');
+    }
+
+
+
+
+
+
+
+
+
+
+    public function SetFontPath(string $path)
+    {
+        $this->fontpath = $path;
+    }
+
+    function AddFont($family, $style = '', $file = '', $dir = '')
+    {
+        // Add a TrueType, OpenType or Type1 font
+        $family = strtolower($family);
+        if ($file == '')
+            $file = str_replace(' ', '', $family) . strtolower($style) . '.php';
+        $style = strtoupper($style);
+        if ($style == 'IB')
+            $style = 'BI';
+        $fontkey = $family . $style;
+        if (isset($this->fonts[$fontkey]))
+            return;
+        if (strpos($file, '/') !== false || strpos($file, "\\") !== false)
+            $this->Error('Incorrect font definition file name: ' . $file);
+        if ($dir == '')
+            $dir = $this->fontpath;
+        if (substr($dir, -1) != '/' && substr($dir, -1) != '\\')
+            $dir .= '/';
+        $info = $this->_loadfont($dir . $file);
+        $info['i'] = count($this->fonts) + 1;
+        if (!empty($info['file'])) {
+            // Embedded font
+            $info['file'] = $dir . $info['file'];
+            if ($info['type'] == 'TrueType')
+                $this->FontFiles[$info['file']] = array('length1' => $info['originalsize']);
+            else
+                $this->FontFiles[$info['file']] = array('length1' => $info['size1'], 'length2' => $info['size2']);
+        }
+        $this->fonts[$fontkey] = $info;
+    }
+
+    function SetFont($family, $style = '', $size = 0)
+    {
+        // Select a font; size given in points
+        if ($family == '')
+            $family = $this->FontFamily;
+        else
+            $family = strtolower($family);
+        $style = strtoupper($style);
+        if (strpos($style, 'U') !== false) {
+            $this->underline = true;
+            $style = str_replace('U', '', $style);
+        } else
+            $this->underline = false;
+        if ($style == 'IB')
+            $style = 'BI';
+        if ($size == 0)
+            $size = $this->FontSizePt;
+        // Test if font is already selected
+        if ($this->FontFamily == $family && $this->FontStyle == $style && $this->FontSizePt == $size)
+            return;
+        // Test if font is already loaded
+        $fontkey = $family . $style;
+        if (!isset($this->fonts[$fontkey])) {
+            // Test if one of the core fonts
+            if ($family == 'arial')
+                $family = 'helvetica';
+            if (in_array($family, $this->CoreFonts)) {
+                if ($family == 'symbol' || $family == 'zapfdingbats')
+                    $style = '';
+                $fontkey = $family . $style;
+                if (!isset($this->fonts[$fontkey]))
+                    $this->AddFont($family, $style);
+            } else
+                $this->Error('Undefined font: ' . $family . ' ' . $style);
+        }
+        // Select it
+        $this->FontFamily = $family;
+        $this->FontStyle = $style;
+        $this->FontSizePt = $size;
+        $this->FontSize = $size / $this->k;
+        $this->CurrentFont = $this->fonts[$fontkey];
+        if ($this->page > 0)
+            $this->_out(sprintf('BT /F%d %.2F Tf ET', $this->CurrentFont['i'], $this->FontSizePt));
+    }
+
+    function SetFontSize($size)
+    {
+        // Set font size in points
+        if ($this->FontSizePt == $size)
+            return;
+        $this->FontSizePt = $size;
+        $this->FontSize = $size / $this->k;
+        if ($this->page > 0 && isset($this->CurrentFont))
+            $this->_out(sprintf('BT /F%d %.2F Tf ET', $this->CurrentFont['i'], $this->FontSizePt));
     }
 }

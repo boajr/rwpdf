@@ -14,7 +14,7 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
     use LinkedObject;
 
     /**
-     * @var Array $array;
+     * @var array $array;
      */
     private $array;
 
@@ -118,7 +118,14 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
         return array_key_exists('Type', $this->array) && $this->array['Type']->GetFinalType() === IPDFObject::TYPE_NAME && $this->array['Type']->GetFinalValue() === 'ObjStm';
     }
 
+    /**
+     * @var ?array $subObjTable
+     */
     private $subObjTable = null;
+
+    /**
+     * @var ?DataStream $subObjStream
+     */
     private $subObjStream = null;
 
     public function ReadObject(int $stmPos, int $objNum): ?IPDFObject
@@ -221,7 +228,7 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
         return count($this->array);
     }
 
-    private function getIntegerOrDefault($obj, $def)
+    private function getIntegerOrDefault(IPDFObject $obj, int $def): int
     {
         if ($obj && $obj->GetFinalType() === self::TYPE_INT) {
             return $obj->GetFinalValue();
@@ -247,10 +254,11 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
                 $bitsPerComponent = 8;
                 $columns = 1;
                 if ($decodeParms !== null && $decodeParms->GetFinalType() === self::TYPE_DICTIONARY) {
-                    $predictor = $this->getIntegerOrDefault($decodeParms['Predictor'], $predictor);
-                    $colors = $this->getIntegerOrDefault($decodeParms['Colors'], $colors);
-                    $bitsPerComponent = $this->getIntegerOrDefault($decodeParms['BitsPerComponent'], $bitsPerComponent);
-                    $columns = $this->getIntegerOrDefault($decodeParms['Columns'], $columns);
+                    $dp = $decodeParms->GetFinalValue();
+                    $predictor = $this->getIntegerOrDefault($dp['Predictor'], $predictor);
+                    $colors = $this->getIntegerOrDefault($dp['Colors'], $colors);
+                    $bitsPerComponent = $this->getIntegerOrDefault($dp['BitsPerComponent'], $bitsPerComponent);
+                    $columns = $this->getIntegerOrDefault($dp['Columns'], $columns);
                 }
                 return $this->filtroFlatDecode($str, $predictor, $colors, $bitsPerComponent, $columns);
 
@@ -277,7 +285,7 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
         throw new PDFParserException('Unknown filter (' . $filtro->GetFinalValue() . ')');
     }
 
-    private function filtroFlatDecode($str, $predictor, $colors, $bitsPerComponent, $columns)
+    private function filtroFlatDecode(string $str, int $predictor, int $colors, int $bitsPerComponent, int $columns): string
     {
         if (!$str)
             return '';

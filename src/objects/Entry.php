@@ -77,14 +77,14 @@ class Entry
 
     private PDF $pdf;
 
-    private $type;
-    private $required;
-    private $minVer;
-    private $maxVer;
+    private array $type;
+    private bool $required;
+    private int $minVer;
+    private int $maxVer;
 
-    private $value_type = 0;
-    private $value_inline = true;
-    private $value = null;
+    private int $value_type = 0;
+    private bool $value_inline = true;
+    private mixed $value = null;
 
     public function __construct(PDF $pdf, array $type, bool $required, int $minVer, int $maxVer)
     {
@@ -547,7 +547,7 @@ class Entry
         }
     }
 
-    private static function scriviName($str): string
+    private static function scriviName(string $str): string
     {
         $out = '/';
         $len = strlen($str);
@@ -564,7 +564,7 @@ class Entry
         return $out;
     }
 
-    private static function scriviNumber($val): string
+    private static function scriviNumber(float $val): string
     {
         // N.B.: uso self::$float_decimals perché così tutti i numeri hanno le stesse cifre decimali
         $num = number_format(floatval($val), static::$float_decimals);
@@ -579,7 +579,7 @@ class Entry
         return substr($num, 0, $last);
     }
 
-    private static function scriviTextString($str, $forceByte = false, $forceText = false): string
+    private static function scriviTextString(string $str, bool $forceByte = false, bool $forceText = false): string
     {
         // conto le parentesi aperte non bilanciate
         $parentesi_totali = 0;

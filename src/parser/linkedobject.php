@@ -7,6 +7,9 @@ use Boajr\PDF\Objects\IBaseObject;
 
 trait LinkedObject
 {
+    /**
+     * @var ?IBaseObject $linkedObject
+     */
     private $linkedObject = null;
 
     public function HasLinkedObject(): bool
