@@ -2,12 +2,12 @@
 
 namespace Boajr\PDF\Objects;
 
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
+
 
 abstract class BaseArray implements IBaseObject
 {
-    protected PDF $pdf;
+    protected InternalState $internalState;
 
     private int $objNumber = 0;
     private int $objOffset = 0;
@@ -77,7 +77,7 @@ abstract class BaseArray implements IBaseObject
 
     protected function addElement(mixed $elem): void
     {
-        $e = new Entry($this->pdf, $this->content_type, false, 1000, 999999);
+        $e = new Entry($this->internalState, $this->content_type, false, 1000, 999999);
         try {
             $e->setValue($elem);
         } catch (EntrySetValueException $ex) {

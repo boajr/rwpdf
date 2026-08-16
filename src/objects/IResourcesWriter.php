@@ -47,7 +47,7 @@ interface IResourcesWriter
     /**
      * funzioni per aggiungere risorse all'oggetto
      */
-    public function addFont(FontDictionary $font): string;
+    public function addFont(FontDictionary|InternalFont $font): InternalFont;
 
     /**
      * funzione che restituisce il procSet da inserire nella risorsa

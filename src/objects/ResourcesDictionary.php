@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 /**
@@ -414,9 +413,9 @@ class ResourcesDictionary extends BaseDictionary
 {
     private ?IResourcesWriter $resourcesWriter = null;
 
-    public function __construct(PDF $pdf, PDFObjectDictionary|IResourcesWriter|null $src = null)
+    public function __construct(InternalState $internalState, PDFObjectDictionary|IResourcesWriter|null $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         // il Type non c'è nelle specifiche, ma ho visto dei PDF che ce l'avevano, mettendolo deprecato dalla versione
         // 1.0, faccio in modo che se è presente, non venga copiato in uscita, ma almeno non da errore in lettura

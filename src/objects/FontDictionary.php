@@ -3,8 +3,8 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
+
 
 /**
  * Classe che rappresenta un font dictionary come specificato nel file ISO_32000-2-2020_sponsored.pdf
@@ -41,64 +41,65 @@ class FontDictionary extends BaseDictionary
             //    break;
 
             case 'Type1':
-                //case 'MMType1':
-                //case 'TrueType':
+            //case 'MMType1':
+            case 'TrueType':
                 $this->addEntry('Subtype', Entry::NAME, true, true, 1000);
                 //$this->addEntry('Name', Entry::NAME, false, true, 1000, 2000);
+                $this->addEntry('Name', Entry::NAME, false, true, 1000, 1001); // ho messo 1001 e non 2000 perché non serve salvare il valore dal pdf 1.1 in poi
                 $this->addEntry('BaseFont', Entry::NAME, true, true, 1000);
-                //$this->addEntry('FirstChar', Entry::INTEGER, false, true, 1000);
-                //$this->addEntry('LastChar', Entry::INTEGER, false, true, 1000);
-                //$this->addEntry('Widths', [Entry::ARRAY => 'Font_WidthsArray'], false, false, 1000);
-                //$this->addEntry('FontDescriptor', [Entry::DICTIONARY => 'FontDescriptorDictionary'], false, false, 1000);
-                $this->addEntry('Encoding', [Entry::NAME, Entry::DICTIONARY => 'EncodingDictionary'], false, true, 1000);
+                $this->addEntry('FirstChar', Entry::INTEGER, false, true, 1000);
+                $this->addEntry('LastChar', Entry::INTEGER, false, true, 1000);
+                $this->addEntry('Widths', [Entry::ARRAY => FontDictionary_WidthsArray::class], false, false, 1000);
+                $this->addEntry('FontDescriptor', [Entry::DICTIONARY => FontDescriptorDictionary::class], false, false, 1000);
+                $this->addEntry('Encoding', [Entry::NAME, Entry::DICTIONARY => EncodingDictionary::class], false, true, 1000);
                 $this->addEntry('ToUnicode', [Entry::STREAM => FontDictionary_ToUnicodeCMapStream::class], false, false, 1002);
                 return;
 
-                //case 'Type3':
-                //    $this->addEntry('Subtype', Entry::NAME, true, true, 1000);
-                //    $this->addEntry('Name', Entry::NAME, false, true, 1000);
-                //    $this->addEntry('FontBBox', Entry::RECTANGLE, true, true, 1000);
-                //    $this->addEntry('FontMatrix', [Entry::ARRAY => 'Matrix'], false, true, 1000);
-                //    //$this->addEntry('CharProcs', Entry::NAME, false, true, 1000);
-                //    $this->addEntry('Encoding', [Entry::DICTIONARY => 'EncodingDictionary'], true, true, 1000);
-                //    $this->addEntry('FirstChar', Entry::INTEGER, false, true, 1000);
-                //    $this->addEntry('LastChar', Entry::INTEGER, false, true, 1000);
-                //    $this->addEntry('Widths', [Entry::ARRAY => 'Font_WidthsArray'], false, false, 1000);
-                //    $this->addEntry('FontDescriptor', [Entry::DICTIONARY => 'FontDescriptorDictionary'], false, false, 1000);
-                //    $this->addEntry('Resources', [Entry::DICTIONARY => 'ResourcesDictionary'], false, true, 1002);
-                //    $this->addEntry('ToUnicode', [Entry::STREAM => 'Font_CMapStream'], false, false, 1002);
-                //    break;
+            //case 'Type3':
+            //    $this->addEntry('Subtype', Entry::NAME, true, true, 1000);
+            //    $this->addEntry('Name', Entry::NAME, false, true, 1000);
+            //    $this->addEntry('FontBBox', Entry::RECTANGLE, true, true, 1000);
+            //    $this->addEntry('FontMatrix', [Entry::ARRAY => 'Matrix'], false, true, 1000);
+            //    //$this->addEntry('CharProcs', Entry::NAME, false, true, 1000);
+            //    $this->addEntry('Encoding', [Entry::DICTIONARY => 'EncodingDictionary'], true, true, 1000);
+            //    $this->addEntry('FirstChar', Entry::INTEGER, false, true, 1000);
+            //    $this->addEntry('LastChar', Entry::INTEGER, false, true, 1000);
+            //    $this->addEntry('Widths', [Entry::ARRAY => 'Font_WidthsArray'], false, false, 1000);
+            //    $this->addEntry('FontDescriptor', [Entry::DICTIONARY => 'FontDescriptorDictionary'], false, false, 1000);
+            //    $this->addEntry('Resources', [Entry::DICTIONARY => 'ResourcesDictionary'], false, true, 1002);
+            //    $this->addEntry('ToUnicode', [Entry::STREAM => 'Font_CMapStream'], false, false, 1002);
+            //    break;
 
-                //case 'CIDFontType0':
-                //case 'CIDFontType2':
-                //    $this->addEntry('Subtype', Entry::NAME, true, true, 1002);
-                //    $this->addEntry('BaseFont', Entry::NAME, true, true, 1000);
-                //    $this->addEntry('CIDSystemInfo', [Entry::DICTIONARY => 'Font_CIDSystemInfoDictionary'], true, true, 1000);
-                //    $this->addEntry('FontDescriptor', [Entry::DICTIONARY => 'FontDescriptorDictionary'], true, false, 1000);
-                //    $this->addEntry('DW', Entry::NUMBER, false, true, 1000);
-                //    $this->addEntry('W', [Entry::ARRAY => 'Font_CIDWidthsArray'], false, true, 1000);
-                //    //$this->addEntry('DW2', Entry::ARRAY, false, true, 1000);
-                //    //$this->addEntry('W2', Entry::ARRAY, false, true, 1000);
-                //    $this->addEntry('CIDToGIDMap', [Entry::NAME, Entry::STREAM => 'Font_CIDToGIDMapStream'], false, [Entry::NAME => true, Entry::STREAM => false], 1000);
-                //    break;
+            //case 'CIDFontType0':
+            //case 'CIDFontType2':
+            //    $this->addEntry('Subtype', Entry::NAME, true, true, 1002);
+            //    $this->addEntry('BaseFont', Entry::NAME, true, true, 1000);
+            //    $this->addEntry('CIDSystemInfo', [Entry::DICTIONARY => 'Font_CIDSystemInfoDictionary'], true, true, 1000);
+            //    $this->addEntry('FontDescriptor', [Entry::DICTIONARY => 'FontDescriptorDictionary'], true, false, 1000);
+            //    $this->addEntry('DW', Entry::NUMBER, false, true, 1000);
+            //    $this->addEntry('W', [Entry::ARRAY => 'Font_CIDWidthsArray'], false, true, 1000);
+            //    //$this->addEntry('DW2', Entry::ARRAY, false, true, 1000);
+            //    //$this->addEntry('W2', Entry::ARRAY, false, true, 1000);
+            //    $this->addEntry('CIDToGIDMap', [Entry::NAME, Entry::STREAM => 'Font_CIDToGIDMapStream'], false, [Entry::NAME => true, Entry::STREAM => false], 1000);
+            //    break;
         }
 
         throw new PDFException('unknown font SubType');
     }
 
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, PDFObjectDictionary|string $src)
     {
-        $this->pdf = $pdf;
-
-        if ($src) {
+        $this->internalState = $internalState;
+        if ($src instanceof PDFObjectDictionary) {
             $this->setSubType($src['Subtype']->GetFinalValue());
             $src->SetLinkedObject($this);
             $this->setData($src);
+        } else {
+            $this->setSubType($src);
+            $this->Type = 'Font';
+            $this->Subtype = $src;
         }
     }
-
-    //public function normalizeFont() {
-    //}
 
     public function appendObject(array &$objs, bool $inline): int
     {
@@ -108,13 +109,25 @@ class FontDictionary extends BaseDictionary
         return $ver;
     }
 
-    public function getHash(): string
+    private ?InternalFont $internalFont = null;
+
+    public function toInternalFont(): InternalFont
     {
-        switch ($this->Subtype) {
-            case 'Type1':
-                return $this->BaseFont;
+        echo '***** To internalFont' . PHP_EOL;
+        if (!$this->internalFont) {
+            switch ($this->Subtype) {
+                case 'Type1':
+                    //case 'MMType1':
+                case 'TrueType':
+                    if (InternalFont::isStandard14Font($this->BaseFont))
+                        $this->internalFont = InternalFont::createStandard14Font($this->internalState, $this->BaseFont);
+                    break;
+            }
         }
 
-        throw new PDFException('unknown font Subtype');
+        if (!$this->internalFont)
+            throw new PDFException('***** BISOGNA CREARE L\'InternalFont *****');
+
+        return $this->internalFont;
     }
 }

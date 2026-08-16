@@ -7,7 +7,6 @@ use Boajr\PDF\Parser\IPDFObject;
 use Boajr\PDF\Parser\PDFObjectDictionary;
 use Boajr\PDF\Parser\PDFOperator;
 use Boajr\PDF\Parser\PDFParserEndOfFileException;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
 
 
@@ -45,27 +44,27 @@ class ContentsStream extends Stream
         'f' => ['ver' => 1000, 'procSet' => 1],    // Fill path using non-zero winding number rule
         //'F' => ['ver' => 1000, 'procSet' => 1],    // equivalente di 'f'
         'f*' => ['ver' => 1000, 'procSet' => 1],   // Fill path using even-odd rule
-        'G' => ['ver' => 1000, 'procSet' => 0, 'params' => ['gray' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceGray', 'color_stroking' => '#params']],   // Set gray level for stroking operations
-        'g' => ['ver' => 1000, 'procSet' => 0, 'params' => ['gray' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceGray', 'color' => '#params']],   // Set gray level for nonstroking operations
+        'G' => ['ver' => 1000, 'procSet' => 1, 'params' => ['gray' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceGray', 'color_stroking' => '#params']],   // Set gray level for stroking operations
+        'g' => ['ver' => 1000, 'procSet' => 1, 'params' => ['gray' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceGray', 'color' => '#params']],   // Set gray level for nonstroking operations
         // 'gs' => ['ver' => 1002, 'procSet' => 0, 'params' => "Table 56 — Graphics state operators"],
         'h' => ['ver' => 1000, 'procSet' => 1],   // Close subpath
         // 'i' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 56 — Graphics state operators"],
         // 'ID' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 90 — Inline image operators"],
         'j' => ['ver' => 1000, 'procSet' => 1, 'params' => ['lineJoin' => Entry::INTEGER], 'graphicsState' => ['line_join' => '$lineJoin']],   // Set line join style
         'J' => ['ver' => 1000, 'procSet' => 1, 'params' => ['lineCap' => Entry::INTEGER], 'graphicsState' => ['line_cap' => '$lineCap']],   // Set line cap style
-        'K' => ['ver' => 1000, 'procSet' => 0, 'params' => ['c' => [Entry::NUMBER, 0.0, 1.0], 'm' => [Entry::NUMBER, 0.0, 1.0], 'y' => [Entry::NUMBER, 0.0, 1.0], 'k' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceCMYK', 'color_stroking' => '#params']],   // Set CMYK colour for stroking operations
+        'K' => ['ver' => 1000, 'procSet' => 1, 'params' => ['c' => [Entry::NUMBER, 0.0, 1.0], 'm' => [Entry::NUMBER, 0.0, 1.0], 'y' => [Entry::NUMBER, 0.0, 1.0], 'k' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceCMYK', 'color_stroking' => '#params']],   // Set CMYK colour for stroking operations
 
-        'k' => ['ver' => 1000, 'procSet' => 0, 'params' => ['c' => [Entry::NUMBER, 0.0, 1.0], 'm' => [Entry::NUMBER, 0.0, 1.0], 'y' => [Entry::NUMBER, 0.0, 1.0], 'k' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceCMYK', 'color' => '#params']],   // Set CMYK colour for nonstroking operations
+        'k' => ['ver' => 1000, 'procSet' => 1, 'params' => ['c' => [Entry::NUMBER, 0.0, 1.0], 'm' => [Entry::NUMBER, 0.0, 1.0], 'y' => [Entry::NUMBER, 0.0, 1.0], 'k' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceCMYK', 'color' => '#params']],   // Set CMYK colour for nonstroking operations
         'l' => ['ver' => 1000, 'procSet' => 1, 'params' => ['x' => Entry::NUMBER, 'y' => Entry::NUMBER]],   // Append straight line segment to path
         'm' => ['ver' => 1000, 'procSet' => 1, 'params' => ['x' => Entry::NUMBER, 'y' => Entry::NUMBER]],   // Begin new subpath
-        'M' => ['ver' => 1000, 'procSet' => 0, 'params' => ['miterLimit' => Entry::NUMBER], 'graphicsState' => ['miter_limit' => '$miterLimit']],   // Set miter limit
+        'M' => ['ver' => 1000, 'procSet' => 1, 'params' => ['miterLimit' => Entry::NUMBER], 'graphicsState' => ['miter_limit' => '$miterLimit']],   // Set miter limit
         // 'MP' => ['ver' => 1002, 'procSet' => 0, 'params' => "Table 352 — Marked-content operators"],
         'n' => ['ver' => 1000, 'procSet' => 1],   // End path without filling or stroking
         'q' => ['ver' => 1000, 'procSet' => 0],   // Save graphics state, posso anche commentare
         'Q' => ['ver' => 1000, 'procSet' => 0],   // Restore graphics state, posso anche commentare
-        're' => ['ver' => 1000, 'procSet' => 0, 'params' => ['x' => Entry::NUMBER, 'y' => Entry::NUMBER, 'width' => Entry::NUMBER, 'height' => Entry::NUMBER]],   // Append rectangle to path
-        'RG' => ['ver' => 1000, 'procSet' => 0, 'params' => ['r' => [Entry::NUMBER, 0.0, 1.0], 'g' => [Entry::NUMBER, 0.0, 1.0], 'b' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceRGB', 'color_stroking' => '#params']],   // Set RGB colour for stroking operations
-        'rg' => ['ver' => 1000, 'procSet' => 0, 'params' => ['r' => [Entry::NUMBER, 0.0, 1.0], 'g' => [Entry::NUMBER, 0.0, 1.0], 'b' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceRGB', 'color' => '#params']],   // Set RGB colour for nonstroking operations
+        're' => ['ver' => 1000, 'procSet' => 1, 'params' => ['x' => Entry::NUMBER, 'y' => Entry::NUMBER, 'width' => Entry::NUMBER, 'height' => Entry::NUMBER]],   // Append rectangle to path
+        'RG' => ['ver' => 1000, 'procSet' => 1, 'params' => ['r' => [Entry::NUMBER, 0.0, 1.0], 'g' => [Entry::NUMBER, 0.0, 1.0], 'b' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space_stroking' => 'DeviceRGB', 'color_stroking' => '#params']],   // Set RGB colour for stroking operations
+        'rg' => ['ver' => 1000, 'procSet' => 1, 'params' => ['r' => [Entry::NUMBER, 0.0, 1.0], 'g' => [Entry::NUMBER, 0.0, 1.0], 'b' => [Entry::NUMBER, 0.0, 1.0]], 'graphicsState' => ['color_space' => 'DeviceRGB', 'color' => '#params']],   // Set RGB colour for nonstroking operations
         // 'ri' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 56 — Graphics state operators"],
         's' => ['ver' => 1000, 'procSet' => 1],   // Close and stroke path
         'S' => ['ver' => 1000, 'procSet' => 1],   // Stroke path
@@ -74,27 +73,27 @@ class ContentsStream extends Stream
         // 'SCN' => ['ver' => 1002, 'procSet' => 0, 'params' => "Table 73 — Colour operators"],
         // 'scn' => ['ver' => 1002, 'procSet' => 0, 'params' => "Table 73 — Colour operators"],
         // 'sh' => ['ver' => 1003, 'procSet' => 0, 'params' => "Table 76 — Shading operator"],
-        // 'T*' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 106 — Text-positioning operators"],
-        // 'Tc' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
+        'T*' => ['ver' => 1000, 'procSet' => 2, 'textState' => ['T*' => 'setMatrix']], // Move to the start of the next line
+        'Tc' => ['ver' => 1000, 'procSet' => 2, 'params' => ['charSpace' => Entry::NUMBER], 'textState' => ['Tc' => '$charSpace']], // Set the character spacing
 
-        // 'Td' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 106 — Text-positioning operators"],
-        // 'TD' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 106 — Text-positioning operators"],
-        'Tf' => ['ver' => 1000, 'procSet' => 2, 'params' => ['font' => Entry::NAME, 'size' => Entry::NUMBER], 'textState' => ['Tf' => 'setFont', 'Tfs' => '$size']], // 
-        // 'Tj' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 107 — Text-showing operators"],
-        // 'TJ' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 107 — Text-showing operators"],
-        // 'TL' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
-        // 'Tm' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 106 — Text-positioning operators"],
-        // 'Tr' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
-        // 'Ts' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
-        // 'Tw' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
-        // 'Tz' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 103 — Text state operators"],
+        'Td' => ['ver' => 1000, 'procSet' => 2, 'params' => ['tx' => Entry::NUMBER, 'ty' => Entry::NUMBER], 'textState' => ['Td' => 'setMatrix']], // Move to the start of the next line, offset from the start of the current line
+        'TD' => ['ver' => 1000, 'procSet' => 2, 'params' => ['tx' => Entry::NUMBER, 'ty' => Entry::NUMBER], 'textState' => ['Tl' => '-$ty', 'TD' => 'setMatrix']], // Move to the start of the next line, offset from the start of the current line and set Tl
+        'Tf' => ['ver' => 1000, 'procSet' => 2, 'params' => ['font' => Entry::INTERNAL_FONT, 'size' => Entry::NUMBER], 'textState' => ['Tf' => 'setFont', 'Tfs' => '$size']], // Set the text font and the text font size
+        'Tj' => ['ver' => 1000, 'procSet' => 2, 'params' => ['string' => Entry::TEXT_STRING], 'textState' => ['string' => 'setText']], // Show a text string
+        'TJ' => ['ver' => 1000, 'procSet' => 2, 'params' => ['array' => Entry::ARRAY], 'textState' => ['array' => 'setText']], // Show zero or more text strings
+        'TL' => ['ver' => 1000, 'procSet' => 2, 'params' => ['leading' => Entry::NUMBER], 'textState' => ['Tl' => '$leading']], // Set the text leading
+        'Tm' => ['ver' => 1000, 'procSet' => 2, 'params' => ['a' => Entry::NUMBER, 'b' => Entry::NUMBER, 'c' => Entry::NUMBER, 'd' => Entry::NUMBER, 'e' => Entry::NUMBER, 'f' => Entry::NUMBER], 'textState' => ['Tm' => 'setMatrix']], // Set the text matrix
+        'Tr' => ['ver' => 1000, 'procSet' => 2, 'params' => ['render' => Entry::NUMBER], 'textState' => ['Tmode' => '$render']], // Set the text rendering mode
+        'Ts' => ['ver' => 1000, 'procSet' => 2, 'params' => ['rise' => Entry::NUMBER], 'textState' => ['Trise' => '$rise']], // Set the text rise
+        'Tw' => ['ver' => 1000, 'procSet' => 2, 'params' => ['wordSpace' => Entry::NUMBER], 'textState' => ['Tw' => '$wordSpace']], // Set the word spacing
+        'Tz' => ['ver' => 1000, 'procSet' => 2, 'params' => ['scale' => Entry::NUMBER], 'textState' => ['Th' => '$scale']],   // Set the font horizontal scaling
         // 'v' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 58 — Path construction operators"],
         'w' => ['ver' => 1000, 'procSet' => 1, 'params' => ['lineWidth' => Entry::NUMBER], 'graphicsState' => ['line_width' => '$lineWidth']],   // Set line width
         'W' => ['ver' => 1000, 'procSet' => 1],    // Set clipping path using non-zero winding number rule
         'W*' => ['ver' => 1000, 'procSet' => 1],   // Set clipping path using even-odd rule
         // 'y' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 58 — Path construction operators"],
-        // '\'' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 107 — Text-showing operators"],
-        // '"' => ['ver' => 1000, 'procSet' => 0, 'params' => "Table 107 — Text-showing operators"],
+        '\'' => ['ver' => 1000, 'procSet' => 0, 'params' => ['string' => Entry::TEXT_STRING], 'textState' => ['string' => 'setText']], // Move to the next line and show a text string
+        '"' => ['ver' => 1000, 'procSet' => 0, 'params' => ['aw' => Entry::NUMBER, 'ac' => Entry::NUMBER, 'string' => Entry::TEXT_STRING], 'textState' => ['Tw' => '$aw', 'Tc' => '$ac', 'string' => 'setText']], // Move to the next line and show a text string
     ];
 
     private const conversioni = [
@@ -130,9 +129,9 @@ class ContentsStream extends Stream
     public bool $needContents = false;
 
 
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null, ?IResourcesWriter $resourcesWriter = null, ?GraphicsState $graphicsState = null, ?ResourcesDictionary $resources = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null, ?IResourcesWriter $resourcesWriter = null, ?GraphicsState $graphicsState = null, ?ResourcesDictionary $resources = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
         $this->resourcesWriter = $resourcesWriter;
         $this->graphicsState = $graphicsState;
         $this->resources = $resources;
@@ -148,21 +147,17 @@ class ContentsStream extends Stream
 
     public function AppendContents(?string $data)
     {
-
-        print_r($this->graphicsState);
-
         $this->needContents = false;
 
         $data = $data ? $this->data . ' ' . $data : $this->data;
         $ds = new DataStream($data, strlen($data));
         try {
             while (($src = $ds->ReadOperator()) instanceof PDFOperator) {
-                $this->AppendOperators($src->operator, ...$src->parameters);
+                $this->AppendOperator($src->operator, ...$src->parameters);
             }
 
             $this->data = null;
             $this->Length = 0;
-            print_r($this->graphicsState);
             return true;
         } catch (PDFParserEndOfFileException $ex) {
             $this->needContents = true;
@@ -172,7 +167,7 @@ class ContentsStream extends Stream
         }
     }
 
-    public function AppendOperators(string $operator, mixed ...$parameters): void
+    public function AppendOperator(string $operator, mixed ...$parameters): void
     {
         $p = null;
 
@@ -206,11 +201,13 @@ class ContentsStream extends Stream
                         $min = null;
                         $max = null;
                         if (is_array($v) && $v[0] === Entry::NUMBER) {
-                            $p[$k] = new Entry($this->pdf, [Entry::NUMBER => true], true, 1000, 999999);
+                            $p[$k] = new Entry($this->internalState, [Entry::NUMBER => true], true, 1000, 999999);
                             $min = $v[1];
                             $max = $v[2];
-                        } else
-                            $p[$k] = new Entry($this->pdf, [$v => true], true, 1000, 999999);
+                        } else if ($v === Entry::ARRAY)
+                            $p[$k] = new Entry($this->internalState, [Entry::ARRAY => [ContentsStream_TextArray::class => true]], true, 1000, 999999);
+                        else
+                            $p[$k] = new Entry($this->internalState, [$v => true], true, 1000, 999999);
 
                         try {
                             $p[$k]->setValue($parameters[$i++]);
@@ -252,11 +249,37 @@ class ContentsStream extends Stream
                             if (!$this->resources->Font)
                                 throw new PDFException('invalid pdf: resources has no font dictionary');
                             $fontName = $p['font']->getValue();
-                            $p['font']->setValue($this->resourcesWriter->addFont($this->resources->Font->$fontName));
-                        } else if (is_string($value) && $value && $value[0] == '$') {
-                            $this->graphicsState->text_state[$state] = $p[substr($value, 1)]->getValue();
+                            $font = $this->resources->Font->$fontName;
+                            $this->graphicsState->text_state->Tf = $this->resourcesWriter->addFont($font);
+                            $this->graphicsState->text_state->encoding = $font->Encoding;
+                            $p['font']->setValue($this->graphicsState->text_state->Tf);
+                        } else if ($value == 'setMatrix') {
+                            switch ($state) {
+                                case 'Td':
+                                case 'TD':
+                                    $this->graphicsState->alterLineTextMatrix($p['tx']->getValue(), $p['ty']->getValue());
+                                    break;
+                                case 'Tm':
+                                    $this->graphicsState->setLineTextMatrix($p['a']->getValue(), $p['b']->getValue(), $p['c']->getValue(), $p['d']->getValue(), $p['e']->getValue(), $p['f']->getValue());
+                                    break;
+                                case 'T*':
+                                    $this->graphicsState->alterLineTextMatrix(0, -$this->graphicsState->text_state->Tl);
+                                    break;
+                            }
+                        } else if ($value == 'setText') {
+                            $this->graphicsState->addUsedChars($p[$state]->getValue());
                         } else {
-                            $this->graphicsState->text_state[$state] = $value;
+                            if ($value && is_string($value)) {
+                                if ($value[0] == '$') {
+                                    $this->graphicsState->text_state->$state = $p[substr($value, 1)]->getValue();
+                                    continue;
+                                }
+                                if (substr($value, 0, 2) == '-$') {
+                                    $this->graphicsState->text_state->$state = -$p[substr($value, 2)]->getValue();
+                                    continue;
+                                }
+                            }
+                            $this->graphicsState->text_state->$state = $value;
                         }
                     }
                 }
@@ -281,7 +304,7 @@ class ContentsStream extends Stream
                             throw new PDFException('invalid operand type');
 
                         $t = static::conversioni[$t];
-                        $e = new Entry($this->pdf, [$t => true], true, 1000, 999999);
+                        $e = new Entry($this->internalState, [$t => true], true, 1000, 999999);
                         $e->setValue($v);
                         $p[] = $e;
                     }
@@ -289,6 +312,35 @@ class ContentsStream extends Stream
             }
         }
         $this->operators[] = ['o' => $operator, 'p' => $p];
+    }
+
+    public function AppendFontOperator(InternalFont $font, float $size): void
+    {
+        $this->graphicsState->text_state->Tf = $font;
+        $this->graphicsState->text_state->encoding = null;
+        $f = new Entry($this->internalState, [Entry::INTERNAL_FONT => true], true, 1000, 999999);
+        $f->setValue($this->resourcesWriter->addFont($font));
+
+        $this->graphicsState->text_state->Tfs = $size;
+        $s = new Entry($this->internalState, [Entry::NUMBER => true], true, 1000, 999999);
+        $s->setValue($size);
+
+        $this->operators[] = ['o' => 'Tf', 'p' => ['font' => $f, 'size' => $s]];
+    }
+
+    public function AppendTextOperator(string $testo): float
+    {
+        [$text, $width] = $this->graphicsState->processText($testo);
+        if (is_array($text)) {
+            $t = new Entry($this->internalState, [Entry::ARRAY => true], true, 1000, 999999);
+            $t->setValue($text);
+            $this->operators[] = ['o' => 'TJ', 'p' => ['array' => $t]];
+        } else {
+            $t = new Entry($this->internalState, [Entry::TEXT_STRING => true], true, 1000, 999999);
+            $t->setValue($text);
+            $this->operators[] = ['o' => 'Tj', 'p' => ['string' => $t]];
+        }
+        return $width;
     }
 
     public function IsEmpty(): bool
@@ -300,8 +352,7 @@ class ContentsStream extends Stream
     {
         $ps = $this->procSet;
 
-        // scorre tutte le risorse per vedere se devo aggiungere altri procset
-
+        print 'TODO: scorrere tutte le risorse per vedere se devo aggiungere altri procset' . PHP_EOL;
 
         return $ps;
     }
@@ -320,7 +371,7 @@ class ContentsStream extends Stream
                 $out .= ' ' . $entry->getOutput($ver);
             }
         }
-        return $out . ' ' . $op;
+        return $out . ($out != '' && strpos(" \t\r\n\f()<>[]/%", $out[strlen($out) - 1]) ? '' : ' ') . $op;
     }
 
     protected function get_stream_data(int $ver): string

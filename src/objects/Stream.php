@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 /**
@@ -14,9 +13,9 @@ class Stream extends BaseDictionary
 {
     protected ?string $data;
 
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         if ($src) {
             $src->SetLinkedObject($this);

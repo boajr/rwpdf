@@ -5,7 +5,6 @@ namespace Boajr\PDF\Objects;
 use Boajr\PDF\Parser\IPDFObject;
 use Boajr\PDF\Parser\PDFObjectArray;
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
 
 
@@ -13,7 +12,7 @@ class BaseDictionary implements IBaseObject
 {
     public static bool $NoUnexpectedEntryError = true;
 
-    protected PDF $pdf;
+    protected InternalState $internalState;
 
     private int $objNumber = 0;
     private int $objOffset = 0;
@@ -90,7 +89,7 @@ class BaseDictionary implements IBaseObject
             return;
         }
 
-        $this->entryList[$key] = new Entry($this->pdf, Entry::normalizeEntryType($type, $inline), $required, $minVer, $maxVer);
+        $this->entryList[$key] = new Entry($this->internalState, Entry::normalizeEntryType($type, $inline), $required, $minVer, $maxVer);
     }
 
     public function setData(?PDFObjectDictionary $src): void
@@ -188,7 +187,7 @@ class BaseDictionary implements IBaseObject
             return null;
 
         if ($type === IPDFObject::TYPE_ARRAY)
-            return new Rectangle($this->pdf, $val->GetFinalValue());
+            return new Rectangle($this->internalState, $val->GetFinalValue());
 
         throw new PDFException("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': wrong type.');
     }
@@ -203,7 +202,7 @@ class BaseDictionary implements IBaseObject
             return null;
 
         if ($type === IPDFObject::TYPE_DICTIONARY)
-            return new ResourcesDictionary($this->pdf, $val->GetFinalValue());
+            return new ResourcesDictionary($this->internalState, $val->GetFinalValue());
 
         throw new PDFException("Unable to set value for entry '$name' in " . $this->dictionaryName() . ': wrong type.');
     }

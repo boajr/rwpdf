@@ -6,7 +6,6 @@ use Boajr\PDF\Objects\CatalogDictionary;
 use Boajr\PDF\Objects\DocumentInformationDictionary;
 use Boajr\PDF\Objects\Entry;
 use Boajr\PDF\Objects\InternalState;
-use Boajr\PDF\Objects\IResourcesWriter;
 use Boajr\PDF\Objects\PageDictionary;
 use Boajr\PDF\Objects\PagesDictionary;
 use Boajr\PDF\Objects\Rectangle;
@@ -19,6 +18,16 @@ use Throwable;
 
 class PDF implements Stringable
 {
+    public const CAP_BUTT = 0;
+    public const CAP_ROUND = 1;
+    public const CAP_SQUARE = 2;
+
+    public const JOIN_MITER = 0;
+    public const JOIN_ROUND = 1;
+    public const JOIN_BEVEL = 2;
+
+
+
     protected const units = [
         'pt' => 1,
         'mm' => 72 / 25.4,
@@ -43,9 +52,33 @@ class PDF implements Stringable
     ];
     protected array $defPageSize = [15120 / 25.4, 21384 / 25.4];   // 'a4'
 
-    protected const coreFonts = ['courier', 'helvetica', 'times', 'symbol', 'zapfdingbats'];
+    protected const fpdfWeight = [
+        '' => [400, false],
+        'b' => [700, false],
+        'i' => [400, true],
+        'bi' => [700, true],
+        'ib' => [700, true]
+    ];
 
-
+    protected const commonWeight = [
+        'thin' => 100,
+        'extralight' => 200,
+        'ultralight' => 200,
+        'light' => 300,
+        '' => 400,
+        'normal' => 400,
+        'regular' => 400,
+        'medium' => 500,
+        'demibold' => 600,
+        'semibold' => 600,
+        'bold' => 700,
+        'extrabold' => 800,
+        'ultrabold' => 800,
+        'black' => 900,
+        'heavy' => 900,
+        'extrablack' => 950,
+        'ultrablack' => 950
+    ];
 
 
 
@@ -67,20 +100,9 @@ class PDF implements Stringable
     protected CatalogDictionary $root;
     protected $encrypt = null;
     protected ?DocumentInformationDictionary $info = null;
-    protected $id = null;
+    protected ?Entry $id = null;
 
     protected ?DataStream $src = null;
-
-    /**
-     * array contenente tutte le pagine del PDF, in fase di output devo creare il PagesDictionary e inserirci questo 
-     * array
-     */
-    protected array $pages = [];
-
-    /**
-     * pagina su cui si sta scrivendo/disegnando
-     */
-    protected ?PageDictionary $curPage = null;
 
     /**
      * internalState che verrà trasmesso in fase di scrittura delle pagine
@@ -88,20 +110,14 @@ class PDF implements Stringable
     protected InternalState $internalState;
 
     /**
-     * array con chiave gli hash delle risorse utilizzate dalle varie pagine e come valore l'elenco delle pagine che
-     * utilizzano quella risorsa. Serve in output per eliminare le risorse doppie.
+     * Cambia la cartella di default dove cercare i font
+     * 
+     * @param string $path - path completo di dove cercare i font
      */
-    protected array $resources = [];
-
-    /**
-     * directory di base dove cercare i file dei font da caricare
-     */
-    protected string $fontpath = __DIR__ . '/font/';
-
-    /**
-     * array con tutti i font usati nelle varie pagine e oggetti
-     */
-    protected array $fonts = [];
+    static public function SetFontPath(string $path)
+    {
+        InternalState::SetFontPath($path);
+    }
 
     /**
      * 
@@ -113,12 +129,9 @@ class PDF implements Stringable
         $this->internalState->lineCap = 2;            // mi adeguo al "2 J" di fpdf
         $this->internalState->lineWidth = 72 / 127;   // mi adeguo al "0.57 w" di fpdf (0.2mm = 0.2 * 72 / 25.4)
 
-        if (defined('FPDF_FONTPATH'))
-            $this->fontpath = FPDF_FONTPATH;
-
         // se non ho un file da leggere, creo un pdf vuoto
         if (!$file_data_or_orientation || $this->toOrientation($file_data_or_orientation)) {
-            $this->root = new CatalogDictionary($this);
+            $this->root = new CatalogDictionary($this->internalState);
             if ($unit)
                 $this->SetMeasureUnit($unit);
             if ($file_data_or_orientation || $size)
@@ -156,7 +169,7 @@ class PDF implements Stringable
         }
 
         // legge le informazioni contenute nel "Document catalog dictionary"
-        $this->root = new CatalogDictionary($this, $xref['Root']->GetFinalValue());
+        $this->root = new CatalogDictionary($this->internalState, $xref['Root']->GetFinalValue());
 
         // legge le informazioni contenute nell'"Encrypt"
         if (isset($xref['Encrypt'])) {
@@ -165,7 +178,7 @@ class PDF implements Stringable
 
         // legge le informazioni contenute nel "Document information dictionary"
         if (isset($xref['Info'])) {
-            $this->info = new DocumentInformationDictionary($this, $xref['Info']->GetFinalValue());
+            $this->info = new DocumentInformationDictionary($this->internalState, $xref['Info']->GetFinalValue());
         }
 
 
@@ -252,7 +265,7 @@ class PDF implements Stringable
             /** @var PDFObjectDictionary $obj */
 
             $type = $obj['Type'];
-            if (!$type || $type->GetFinalType() !== IPDFObject::TYPE_STRING || $type->GetFinalValue() !== 'XRef') {
+            if (!$type || $type->GetFinalType() !== IPDFObject::TYPE_NAME || $type->GetFinalValue() !== 'XRef') {
                 throw new PDFException('invalid XRefObj: dictionary Type field isn\'t \'XRef\'');
             }
 
@@ -349,99 +362,28 @@ class PDF implements Stringable
     }
 
     /**
-     * NON CANCELLARE!!!
-     * 
-     * aggiunge una pagina all'array delle pagine, senza verifcare nulla. Funzione chiamata dal PagesDictionary tramite
-     * Reflection
-     */
-    private function pushPage(PageDictionary $page)
-    {
-        $this->pages[] = $page;
-    }
-
-    /**
-     * NON CANCELLARE!!!
-     * 
-     * aggiunge l'hash di una risorsa all'array delle risorse. Funzione chiamata dal PagesDictionary (e altre classi) 
-     * tramite Reflection
-     */
-    private function pushResources(IResourcesWriter $writer)
-    {
-        $hash = $writer->getResourcesHash(true);
-        if (array_key_exists($hash, $this->resources))
-            $this->resources[$hash][] = $writer;
-        else
-            $this->resources[$hash] = [$writer];
-    }
-
-    /**
-     * NON CANCELLARE!!!
-     * 
-     * restituisce l'elenco delle pagine che utilizzano una certa risosrsa. Funzione chiamata dal ResourcesDictionary 
-     * tramite Reflection
-     */
-    private function getIResourcesWriters(string $hash): array
-    {
-        if (array_key_exists($hash, $this->resources))
-            return $this->resources[$hash];
-        throw new PDFException('resources hash not found');
-    }
-
-    /**
-     * NON CANCELLARE!!!
-     * 
-     * aggiunge una singola risorsa alle risorse globali
-     */
-    private function pushSingleResource(string $type, object $obj): array
-    {
-        if ($type == 'font') {
-            $hash = $obj->getHash();
-            if (array_key_exists($hash, $this->fonts))
-                return $this->fonts[$hash];
-            $f = [count($this->fonts) + 1, $obj];
-            $this->fonts[$hash] = $f;
-            return $f;
-        }
-
-        throw new PDFException('unkwown resources type');
-    }
-
-
-
-
-
-
-
-    /**
      * scrive il PDF
      */
     public function __toString(): string
     {
         // crea l'alberatura delle pagine dall'array pages
-        $this->resources = [];
+        $this->internalState->emptyResources();
         $this->root->Pages = new PagesDictionary(
-            $this,
+            $this->internalState,
             null,
-            count($this->pages) > 0 ? $this->pages : [new PageDictionary($this, $this->defPageSize, 0)],
-            new Rectangle($this, 0, 0, $this->defPageSize[0], $this->defPageSize[1])
+            $this->internalState->getPages() ?: [new PageDictionary($this->internalState, $this->defPageSize, 0)],
+            new Rectangle($this->internalState, 0, 0, $this->defPageSize[0], $this->defPageSize[1])
         );
 
         // di default rotate è zero, quindi posso eliminarlo
         if ($this->root->Pages->Rotate == 0)
             unset($this->root->Pages->Rotate);
 
-        // TODO: eliminare tutti i box che prenderebbero i valori di default
+        // ???
+        print 'TODO: eliminare tutti i box che prenderebbero i valori di default' . PHP_EOL;
 
-        // TODO: creare una struttura con tutte le risorse usate dalle pagine e renderle univoche
-        foreach ($this->resources as $k => $r) {
-            print $k . PHP_EOL;
-            foreach ($r as $a => $b)
-                print '  ' . $a . ' ' . get_class($b) . PHP_EOL;
-        }
-        //print get_class($r) . PHP_EOL;
-        //print_r($resources);
-
-
+        // riduce la dimensione delle risorse accorpando quelle uguali
+        $this->internalState->shrinkResources();
 
         // crea la lista di tutti gli oggetti da includere nel pdf
         $objs = [];
@@ -524,7 +466,7 @@ class PDF implements Stringable
     private function crea_id()
     {
         if (!$this->id) {
-            $this->id = new Entry($this, [Entry::BYTE_STRING => true], true, 1000, 999999);
+            $this->id = new Entry($this->internalState, [Entry::BYTE_STRING => true], true, 1000, 999999);
             $id = '';
             for ($i = 0; $i < 16; ++$i) {
                 $id .= chr(rand(0, 255));
@@ -578,13 +520,14 @@ class PDF implements Stringable
      * Converte un numero o un numero seguito da un'unita di misura nel valore da usare nel pdf per rappresentare quella misura.
      * 
      * @param float|string $str - Misura da convertire
+     * @param float        $k   - Fattore di conversione se non si vuole usare quello impostato per la pagina
      * 
      * @return ?float
      */
-    private function toMeasure(float|string $str): ?float
+    private function toMeasure(float|string $str, float $k = 0): ?float
     {
         if (is_numeric($str))
-            return (float)$str * $this->k;
+            return (float)$str * ($k ?: $this->k);
 
         $unit = substr($str, -2);
         if (!array_key_exists($unit, static::units))
@@ -682,6 +625,43 @@ class PDF implements Stringable
     }
 
     /**
+     * trasforma un array di interi compresi tra 0 e 255 in un array di float compresi tra 0 e 1
+     * 
+     * @param int|array|null $value - Array da trasformare
+     * 
+     * @return ?array - Valore convertito
+     */
+    private function toColorArray(int|array|null $value): ?array
+    {
+        if ($value === null)
+            return null;
+
+        if (!is_array($value)) {
+            return [$this->toColorValue($value)];
+        }
+
+        $c = count($value);
+        if (!$c)
+            return null;
+
+        if (($c != 1 && $c != 3) || !is_integer($value[0]))
+            throw new PDFException('invalid color array');
+
+        if ($c == 3)
+            return [$this->toColorValue($value[0])];
+
+        if (!is_integer($value[1]) || !is_integer($value[2]))
+            throw new PDFException('invalid color array');
+
+        $r = $this->toColorValue($value[0]);
+        $g = $this->toColorValue($value[1]);
+        $b = $this->toColorValue($value[2]);
+        if ($r == 0 && $g == 0 && $b == 0)
+            return [0.0];
+        return [$r, $g, $b];
+    }
+
+    /**
      * Measure unit to use in all methods (except in SetFont that dafault is always 'pt')
      * 
      * @param string $unit - Measure unit to use ('pt', 'mm', 'cm', 'in')
@@ -718,10 +698,9 @@ class PDF implements Stringable
      */
     public function SetPageSize(float|string|null $width, float|string|array|null $height = null): void
     {
-        if (!$this->curPage)
-            throw new PDFException('No page selected');
-
-        $this->curPage->SetPageSize($this->toPageSize($width, $height));
+        // in questo modo verifica prima l'esistenza della pagina
+        $page = $this->internalState->getCurrentPage();
+        $page->SetPageSize($this->toPageSize($width, $height));
     }
 
     /**
@@ -733,13 +712,13 @@ class PDF implements Stringable
      */
     public function SetPageRotation(int $rotate): void
     {
-        if (!$this->curPage)
-            throw new PDFException('No page selected');
+        // in questo modo verifica prima l'esistenza della pagina
+        $page = $this->internalState->getCurrentPage();
 
         if ($rotate % 90 != 0)
             throw new PDFException('incorrect rotation value (' . $rotate . ')');
 
-        $this->curPage->Rotate = $rotate % 360;
+        $page->Rotate = $rotate % 360;
     }
 
     /**
@@ -778,11 +757,7 @@ class PDF implements Stringable
             $rotate %= 360;
         }
 
-        $this->curPage = new PageDictionary($this, $size, $rotate ?: 0);
-        if ($page_num == -1 || $page_num > count($this->pages))
-            $this->pages[] = $this->curPage;
-        else
-            array_splice($this->pages, $page_num - 1, 0, [$this->curPage]);
+        $this->internalState->insertPage(new PageDictionary($this->internalState, $size, $rotate ?: 0), $page_num);
     }
 
     /**
@@ -792,7 +767,7 @@ class PDF implements Stringable
      */
     public function CountPages(): int
     {
-        return count($this->pages);
+        return $this->internalState->countPages();
     }
 
     /**
@@ -802,10 +777,7 @@ class PDF implements Stringable
      */
     public function GoToPage(int $page_num): void
     {
-        if ($page_num <= 0 || $page_num > count($this->pages))
-            throw new PDFException('page doesn\'t exist');
-
-        $this->curPage = $this->pages[$page_num - 1];
+        $this->internalState->goToPage($page_num);
     }
 
     /**
@@ -903,19 +875,47 @@ Write - stampare testo continuo
     /**
      * SetTextColor - imposta il colore del testo
      * 
-     * @param int  $r - valore del colore rosso o della gradazione di grigio
+     * @param ?int $r - valore del colore rosso o della gradazione di grigio
      * @param ?int $g - valore del colore verde o null se l'immagine è in bianco e nero
      * @param ?int $b - valore del colore blu o null se l'immagine è in bianco e nero
      */
-    public function SetTextColor($r, $g = null, $b = null)
+    public function SetTextColor(?int $r, ?int $g = null, ?int $b = null)
     {
         $rf = $this->toColorValue($r);
         $gf = $this->toColorValue($g);
         $bf = $this->toColorValue($b);
-        if (($rf == 0 && $gf == 0 && $bf == 0) || $gf === null || $bf === null)
+        if ($rf === null)
+            $this->internalState->textColor = null;
+        elseif (($rf == 0 && $gf == 0 && $bf == 0) || $gf === null || $bf === null)
             $this->internalState->textColor = [$rf];
         else
             $this->internalState->textColor = [$rf, $gf, $bf];
+    }
+
+    /**
+     * SetTextRenderingMode - imposta il colore del testo
+     * 
+     * @param int|array|null    $fillColor        - colore da usare per il riempimento dei caratteri, se null il font sarà trasparente
+     * @param float|string      $borderWidth      - spessore del bordo da disegnare attorno al carattere, se 0 non verrà disegnato
+     * @param int|array|null    $borderColor      - colore del bordo, se null non verrà disegnato
+     * @param ?int              $borderJoin       - tipo di join da usare per le linee, se null verrà usato quello del draw
+     * @param float|string|null $borderMiterLimit - miterLimit usato per disegnare il bordo, se null verrà usato quello del draw
+     */
+    public function SetTextRenderingMode(int|array|null $fillColor, float|string $borderWidth, int|array|null $borderColor, ?int $borderJoin = null, float|string|null $borderMiterLimit = null)
+    {
+        $fc = $this->toColorArray($fillColor);
+        $bw = $this->toMeasure($borderWidth);
+        if ($bw === null)
+            throw new PDFException('invalid parameters: unable to convert borderWidth to valid measurement.');
+        $bc = $this->toColorArray($borderColor);
+        if ($borderJoin < 0 || $borderJoin > 2)
+            throw new PDFException('invalid parameters: unknow join type.');
+        $ml = $this->toMeasure($borderMiterLimit);
+        if ($ml === null)
+            throw new PDFException('invalid parameters: unable to convert borderMiterLimit to valid measurements.');
+
+        $this->internalState->textColor = $fc;
+        $this->internalState->textStroking = [$bw, $bc, $borderJoin, $ml];
     }
 
     /**
@@ -933,6 +933,24 @@ Write - stampare testo continuo
         $this->internalState->lineWidth = $w;
     }
 
+    public function SetLineCap(int $cap)
+    {
+        if ($cap < 0 || $cap > 2)
+            throw new PDFException('invalid parameters: unknow cap type.');
+        $this->internalState->lineCap = $cap;
+    }
+
+    public function SetLineJoin(int $join, float|string $miterLimit = 0)
+    {
+        if ($join < 0 || $join > 2)
+            throw new PDFException('invalid parameters: unknow join type.');
+        $ml = $this->toMeasure($miterLimit);
+        if ($ml === null)
+            throw new PDFException('invalid parameters: unable to convert miterLimit to valid measurements.');
+        $this->internalState->lineJoin = $join;
+        $this->internalState->miterLimit = $ml;
+    }
+
     /**
      * Line - traccia una linea da un punto ad un altro
      * 
@@ -945,8 +963,8 @@ Write - stampare testo continuo
      */
     public function Line(float|string $x1, float|string $y1, float|string $x2, float|string $y2)
     {
-        if (!$this->curPage)
-            throw new PDFException('No page selected');
+        // in questo modo verifica prima l'esistenza della pagina
+        $page = $this->internalState->getCurrentPage();
 
         $mx = $this->toMeasure($x1);
         $my = $this->toMeasure($y1);
@@ -955,9 +973,9 @@ Write - stampare testo continuo
         if ($mx === null || $my === null || $lx === null || $ly === null)
             throw new PDFException('invalid parameters: unable to convert one or more values to valid measurements.');
 
-        $this->curPage->MoveTo($mx, $my);
-        $this->curPage->LineTo($lx, $ly);
-        $this->curPage->Stroke();
+        $page->MoveTo($mx, $my);
+        $page->LineTo($lx, $ly);
+        $page->Stroke();
     }
 
     /**
@@ -973,8 +991,8 @@ Write - stampare testo continuo
      */
     public function Rect(float|string $x, float|string $y, float|string $w, float|string $h, string $style = '')
     {
-        if (!$this->curPage)
-            throw new PDFException('No page selected');
+        // in questo modo verifica prima l'esistenza della pagina
+        $page = $this->internalState->getCurrentPage();
 
         $rx = $this->toMeasure($x);
         $ry = $this->toMeasure($y);
@@ -983,13 +1001,13 @@ Write - stampare testo continuo
         if ($rx === null || $ry === null || $rw === null || $rh === null)
             throw new PDFException('invalid parameters: unable to convert one or more values to valid measurements.');
 
-        $this->curPage->Rect($rx, $ry, $rw, $rh);
+        $page->Rect($rx, $ry, $rw, $rh);
         if ($style == 'F')
-            $this->curPage->Fill();
+            $page->Fill();
         elseif ($style == 'FD' || $style == 'DF')
-            $this->curPage->FillAndStroke();
+            $page->FillAndStroke();
         elseif ($style === '' || $style == 'F')
-            $this->curPage->Stroke();
+            $page->Stroke();
         else
             throw new PDFException('invalid parameters: unknown style.');
     }
@@ -1002,96 +1020,294 @@ Write - stampare testo continuo
 
 
 
-
-    public function SetFontPath(string $path)
+    /**
+     * funzione che converte uno style in weight e italic
+     * 
+     * Lo style può essere:
+     * - una qualsiasi combinazione di 'B' (grassetto), 'I' (corsivo), 'U' (sottolineato) e 'S' (barrato)
+     * - uno dei common weight di OpenType ('Thin', 'ExtraLight', 'UltraLight', 'Light', 'Normal', 'Regular', 'Medium',
+     *   'DemiBold', 'SemiBold', 'Bold', 'ExtraBold', 'UltraBold', 'Black', 'Heavy', 'ExtraBlack', 'UltraBlack')
+     *   seguito o no dalla parola 'Italic'
+     * - un numero da 1 a 1000 seguito da una qualsiasi combinazione di 'I' (corsivo), 'U' (sottolineato) e 'S'
+     *   (barrato)
+     */
+    private function convertiFontStyle(string|int $style): array
     {
-        $this->fontpath = $path;
+        $italic = 'n';
+        $decoration = '';
+        if (!is_integer($style)) {
+            $style = strtolower($style);
+
+            // verifico i common weight
+            if (str_ends_with($style, 'italic')) {
+                $italic = 'i';
+                $style = substr($style, 0, -6);
+            }
+
+            if (array_key_exists($style, static::commonWeight))
+                return [static::commonWeight[$style], $italic, null];
+
+            $weight = 400;
+            if (strpos($style, 'b') !== false) {
+                $weight = 700;
+                $style = str_replace('b', '', $style);
+            }
+
+            if (strpos($style, 'i') !== false) {
+                $italic = 'i';
+                $style = str_replace('i', '', $style);
+            }
+
+            if (strpos($style, 's') !== false) {
+                $decoration = 'S';
+                $style = str_replace('s', '', $style);
+            }
+
+            if (strpos($style, 'u') !== false) {
+                $decoration = 'U';
+                $style = str_replace('u', '', $style);
+            }
+
+            if ($style === '')
+                return [$weight, $italic, $decoration];
+
+            $style = intval($style);
+        }
+
+        if ($style <= 0 || $style > 1000)
+            throw new PDFException('invalid parameters: unknown style.');
+        return [$style, $italic, $decoration];
     }
 
-    function AddFont($family, $style = '', $file = '', $dir = '')
+    /**
+     * Aggiunge un font nel formato dell'fpdf. Per caricare file TrueType senza
+     * pre-processarli di deve usare la funzione AddTrueTypeFont.
+     */
+    public function AddFont(string $family, string $style = '', string $file = '', string $dir = '')
     {
         // Add a TrueType, OpenType or Type1 font
         $family = strtolower($family);
         if ($file == '')
-            $file = str_replace(' ', '', $family) . strtolower($style) . '.php';
-        $style = strtoupper($style);
-        if ($style == 'IB')
-            $style = 'BI';
-        $fontkey = $family . $style;
-        if (isset($this->fonts[$fontkey]))
-            return;
-        if (strpos($file, '/') !== false || strpos($file, "\\") !== false)
-            $this->Error('Incorrect font definition file name: ' . $file);
-        if ($dir == '')
-            $dir = $this->fontpath;
-        if (substr($dir, -1) != '/' && substr($dir, -1) != '\\')
-            $dir .= '/';
-        $info = $this->_loadfont($dir . $file);
-        $info['i'] = count($this->fonts) + 1;
-        if (!empty($info['file'])) {
-            // Embedded font
-            $info['file'] = $dir . $info['file'];
-            if ($info['type'] == 'TrueType')
-                $this->FontFiles[$info['file']] = array('length1' => $info['originalsize']);
-            else
-                $this->FontFiles[$info['file']] = array('length1' => $info['size1'], 'length2' => $info['size2']);
-        }
-        $this->fonts[$fontkey] = $info;
+            $file = str_replace(' ', '', $family) . strtolower($style) . '.json';
+        if ($dir != '')
+            $file = rtrim($dir, '/\\') . '/' . $file;
+        $this->AddTrueTypeFont($file, $family, $style);
     }
 
-    function SetFont($family, $style = '', $size = 0)
+    /**
+     * Aggiunge un font TrueType o OpenType al pdf. Estrapola i vari valori dal
+     * file del font, ma se si vogliono modificare è possibile forzarli
+     * passando il nome di un family o uno style
+     * 
+     * Il file puà essere il nome di un file (in questo caso viene cercato
+     * nella directory di default), o un path completo.
+     * 
+     * Il family può essere:
+     * - null, in questo caso il nome della famiglia verrà estratto dal file
+     *   del font
+     * - un testo che sarà usato come nome della famiglia del font
+     * 
+     * Lo style può essere:
+     * - null, in questo caso il peso del font verrà estratto dal file del font
+     * - uno dei valori accettati da fpdf ('', 'B', 'I', 'BI', 'IB')
+     * - uno dei common weight di OpenType ('Thin', 'ExtraLight', 'UltraLight',
+     *   'Light', 'Normal', 'Regular', 'Medium', 'DemiBold', 'SemiBold', 
+     *   'Bold', 'ExtraBold', 'UltraBold', 'Black', 'Heavy', 'ExtraBlack',
+     *   'UltraBlack'). Se il nome è seguito della parola 'Italic', si passa
+     *   alla variante in corsivo
+     * - un numero da 1 a 1000. Se seguito dalla lettera 'I' si passa alla
+     *   variante in corsivo
+     */
+    public function AddTrueTypeFont(string $file, ?string $family = null, string|int|null $style = null)
     {
-        // Select a font; size given in points
+        $family = trim($family ?: '');
+
+        if ($style !== null)
+            [$weight, $style, $decoration] = $this->convertiFontStyle($style ?: '');
+        else
+            $weight = null;
+
+        $this->internalState->addFont($file, $family ? trim($family) : null, $style, $weight);
+    }
+
+    /**
+     * Imposta il font per la scrittura
+     */
+    public function SetFont(string $family, string|int $style = '', float|string|null $size = 0)
+    {
         if ($family == '')
-            $family = $this->FontFamily;
+            $family = $this->internalState->fontFamily;
         else
             $family = strtolower($family);
-        $style = strtoupper($style);
-        if (strpos($style, 'U') !== false) {
-            $this->underline = true;
-            $style = str_replace('U', '', $style);
-        } else
-            $this->underline = false;
-        if ($style == 'IB')
-            $style = 'BI';
-        if ($size == 0)
-            $size = $this->FontSizePt;
-        // Test if font is already selected
-        if ($this->FontFamily == $family && $this->FontStyle == $style && $this->FontSizePt == $size)
-            return;
-        // Test if font is already loaded
-        $fontkey = $family . $style;
-        if (!isset($this->fonts[$fontkey])) {
-            // Test if one of the core fonts
-            if ($family == 'arial')
-                $family = 'helvetica';
-            if (in_array($family, $this->CoreFonts)) {
-                if ($family == 'symbol' || $family == 'zapfdingbats')
-                    $style = '';
-                $fontkey = $family . $style;
-                if (!isset($this->fonts[$fontkey]))
-                    $this->AddFont($family, $style);
-            } else
-                $this->Error('Undefined font: ' . $family . ' ' . $style);
+
+        // converte lo style in spessore, corsivo e decorazione
+        [$weight, $style, $decoration] = $this->convertiFontStyle($style);
+
+        // converte la dimensione in un valore utilizzabile
+        if (!$size)
+            $size = $this->internalState->fontSize;
+        else {
+            $size = $this->toMeasure($size, 1);
+            if (!$size)
+                throw new PDFException('invalid parameters: unable to convert size to valid measurement.');
         }
-        // Select it
-        $this->FontFamily = $family;
-        $this->FontStyle = $style;
-        $this->FontSizePt = $size;
-        $this->FontSize = $size / $this->k;
-        $this->CurrentFont = $this->fonts[$fontkey];
-        if ($this->page > 0)
-            $this->_out(sprintf('BT /F%d %.2F Tf ET', $this->CurrentFont['i'], $this->FontSizePt));
+
+        $this->internalState->setFont($family, $style, $weight, $size, $decoration);
     }
 
-    function SetFontSize($size)
+    public function SetFontSize(float|string $size = 0)
     {
-        // Set font size in points
-        if ($this->FontSizePt == $size)
+        $size = $this->toMeasure($size, 1);
+        if (!$size)
+            throw new PDFException('invalid parameters: unable to convert size to valid measurement.');
+        $this->internalState->fontSize = $size;
+    }
+
+    public function SetFontWeight(string|int $weight)
+    {
+        if (is_string($weight)) {
+            switch (strtolower($weight)) {
+                case 'normal':
+                    $weight = 400;
+                    break;
+
+                case 'bold':
+                    $weight = 700;
+                    break;
+
+                case 'lighter':
+                    if ($this->internalState->fontWeight <= 550)
+                        $weight = 100;
+                    elseif ($this->internalState->fontWeight <= 750)
+                        $weight = 400;
+                    else
+                        $weight = 700;
+                    break;
+
+                case 'bolder':
+                    if ($this->internalState->fontWeight > 550)
+                        $weight = 900;
+                    elseif ($this->internalState->fontWeight > 350)
+                        $weight = 700;
+                    else
+                        $weight = 400;
+                    break;
+
+                default:
+                    $weight = intval($weight);
+                    if (!$weight)
+                        throw new PDFException('invalid parameters: unknown weight descriprion.');
+                    break;
+            }
+        }
+
+        if ($weight <= 0 || $weight > 1000)
+            throw new PDFException('invalid parameters: invalid weight value.');
+
+        $this->internalState->setFontWeight($weight);
+    }
+
+    public function SetFontStyle(string $style)
+    {
+        switch (strtolower($style)) {
+            case '':
+            case 'n':
+            case 'normal':
+                $style = 'n';
+                break;
+
+            case 'i':
+            case 'italic':
+                $style = 'i';
+                break;
+
+            default:
+                throw new PDFException('invalid parameters: unknown style descriprion.');
+        }
+
+        $this->internalState->setFontStyle($style);
+    }
+
+    public function SetLineHeight(string|int $height)
+    {
+        if (is_numeric($height)) {
+            $this->internalState->lineHeight = [(float)$height, 'rel'];
+        } else {
+            $height = $this->toMeasure($height, 1);
+            if (!$height)
+                throw new PDFException('invalid parameters: unable to convert height to valid measurement.');
+            $this->internalState->lineHeight = [$height, 'abs'];
+        }
+    }
+
+    public function SetTextDecoration(?string $decoration)
+    {
+        if (!$decoration) {
+            $this->internalState->textDecoration = null;
             return;
-        $this->FontSizePt = $size;
-        $this->FontSize = $size / $this->k;
-        if ($this->page > 0 && isset($this->CurrentFont))
-            $this->_out(sprintf('BT /F%d %.2F Tf ET', $this->CurrentFont['i'], $this->FontSizePt));
+        }
+        switch (strtolower($decoration)) {
+            case '':
+            case 'none':
+                $this->internalState->textDecoration = null;
+                return;
+
+            case 'u':
+            case 'underline':
+                $this->internalState->textDecoration = 'u';
+                return;
+
+            //case 'o':
+            //case 'overline':
+            //    $this->internalState->textDecoration = 'o';
+            //    return;
+
+            case 's':
+            case 'line-through':
+            case 'strikethrough':
+                $this->internalState->textDecoration = 's';
+                return;
+
+                //text-decoration-line: blink;
+                //text-decoration-line: spelling-error;
+                //text-decoration-line: grammar-error;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    /**
+     * Text - Stampa una stringa di caratteri.
+     * L'origine è alla sinistra del primo carattere, sulla baseline. 
+     * 
+     * @param float|string $x   - posizione x del punto iniziale
+     * @param float|string $y   - posizione y del punto iniziale
+     * @param ?string      $txt - testo da scrivere
+     * 
+     * @throws PDFException
+     */
+    public function Text(float|string $x, float|string $y, ?string $txt)
+    {
+        // in questo modo verifica prima l'esistenza della pagina
+        $page = $this->internalState->getCurrentPage();
+
+        if (!$txt)
+            return;
+
+        $x = $this->toMeasure($x);
+        $y = $this->toMeasure($y);
+        if ($x === null || $y === null)
+            throw new PDFException('invalid parameters: unable to convert one or more values to valid measurements.');
+
+        $page->PlainText($x, $y, $txt);
     }
 }

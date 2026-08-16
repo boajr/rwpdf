@@ -4,14 +4,14 @@ namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\IPDFObject;
 use Boajr\PDF\Parser\PDFObjectArray;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
+
 
 class ContentsArray extends FullArray
 {
-    public function __construct(PDF $pdf, ?PDFObjectArray $src = null, ?IResourcesWriter $resourcesWriter = null, ?GraphicsState $graphicsState = null, ?ResourcesDictionary $resources = null)
+    public function __construct(InternalState $internalState, ?PDFObjectArray $src = null, ?IResourcesWriter $resourcesWriter = null, ?GraphicsState $graphicsState = null, ?ResourcesDictionary $resources = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->setElementType([Entry::STREAM => ContentsStream::class], false);
 
@@ -31,7 +31,7 @@ class ContentsArray extends FullArray
                 if ($last) {
                     $last->AppendContents($val->GetFinalValue()->GetStream(true));
                 } else {
-                    $last = new ContentsStream($this->pdf, $val->GetFinalValue(), $resourcesWriter, $graphicsState, $resources);
+                    $last = new ContentsStream($this->internalState, $val->GetFinalValue(), $resourcesWriter, $graphicsState, $resources);
                 }
 
                 if (!$last->needContents) {

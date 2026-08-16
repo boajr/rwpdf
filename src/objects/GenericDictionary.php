@@ -33,7 +33,7 @@ class GenericDictionary extends BaseDictionary
         if (array_key_exists($name, $this->entryList)) {
             $this->entryList[$name]->setValue($value);
         } else {
-            $e = new Entry($this->pdf, $this->content_type, false, 1000, 999999);
+            $e = new Entry($this->internalState, $this->content_type, false, 1000, 999999);
             try {
                 $e->setValue($value);
             } catch (EntrySetValueException $ex) {

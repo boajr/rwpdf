@@ -3,14 +3,13 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectArray;
-use Boajr\PDF\PDF;
 
 
 class ResourcesDictionary_ProcSetArray extends FullArray
 {
-    public function __construct(PDF $pdf, ?PDFObjectArray $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectArray $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->setElementType(Entry::NAME, true);
 

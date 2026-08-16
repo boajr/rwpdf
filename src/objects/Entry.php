@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\IPDFObject;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
 use DateTimeInterface;
 
@@ -23,6 +22,9 @@ class Entry
     public const RECTANGLE = 9;
     public const STREAM = 10;
     public const TEXT_STRING = 11;
+
+    public const INTERNAL_FONT = 100;
+
 
     /**
      * @var int $float_decimals - Max number of decimal digits to output
@@ -75,7 +77,7 @@ class Entry
         return $nt;
     }
 
-    private PDF $pdf;
+    private InternalState $internalState;
 
     private array $type;
     private bool $required;
@@ -86,9 +88,9 @@ class Entry
     private bool $value_inline = true;
     private mixed $value = null;
 
-    public function __construct(PDF $pdf, array $type, bool $required, int $minVer, int $maxVer)
+    public function __construct(InternalState $internalState, array $type, bool $required, int $minVer, int $maxVer)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
         $this->type = $type;
         $this->required = $required;
         $this->minVer = $minVer;
@@ -114,7 +116,7 @@ class Entry
         }
 
         if ($val instanceof IPDFObject) {
-        $val = $val->GetReferencedObject();
+            $val = $val->GetReferencedObject();
             if (!$val->HasLinkedObject()) {
                 $type = $val->GetFinalType();
                 if ($type === IPDFObject::TYPE_NULL) {
@@ -128,7 +130,7 @@ class Entry
                                 $key = array_key_first($sub);
                                 $this->value_type = self::ARRAY;
                                 $this->value_inline = $sub[$key];
-                                $this->value = new $key($this->pdf, $val->GetFinalValue());
+                                $this->value = new $key($this->internalState, $val->GetFinalValue());
                                 return;
                             }
                             break;
@@ -188,7 +190,7 @@ class Entry
                                     $key = array_key_first($sub);
                                     $this->value_type = self::DICTIONARY;
                                     $this->value_inline = $sub[$key];
-                                    $this->value = new $key($this->pdf, $fin);
+                                    $this->value = new $key($this->internalState, $fin);
                                     return;
                                 }
 
@@ -197,7 +199,7 @@ class Entry
                                     if ($type === ($pos === false ? $key : substr($key, $pos + 1))) {
                                         $this->value_type = self::DICTIONARY;
                                         $this->value_inline = $il;
-                                        $this->value = new $key($this->pdf, $fin);
+                                        $this->value = new $key($this->internalState, $fin);
                                         return;
                                     }
                                 }
@@ -215,6 +217,7 @@ class Entry
                             break;
 
                         case self::NAME:
+                        case self::INTERNAL_FONT:
                             if ($type === IPDFObject::TYPE_NAME) {
                                 $this->value_type = self::NAME;
                                 $this->value_inline = $sub;
@@ -236,7 +239,7 @@ class Entry
                             if ($type === IPDFObject::TYPE_ARRAY) {
                                 $this->value_type = self::RECTANGLE;
                                 $this->value_inline = $sub;
-                                $this->value = new Rectangle($this->pdf, $val->GetFinalValue());
+                                $this->value = new Rectangle($this->internalState, $val->GetFinalValue());
                                 return;
                             }
                             break;
@@ -246,7 +249,7 @@ class Entry
                                 $key = array_key_first($sub);
                                 $this->value_type = self::STREAM;
                                 $this->value_inline = $sub[$key];
-                                $this->value = new $key($this->pdf, $val->GetFinalValue());
+                                $this->value = new $key($this->internalState, $val->GetFinalValue());
                                 return;
                             }
                             break;
@@ -308,7 +311,7 @@ class Entry
         }
 
         foreach ($this->type as $t => $sub) {
-        switch ($t) {
+            switch ($t) {
                 case self::ARRAY:
                     if (is_array($val)) {
                         throw new EntrySetValueException('TODO: Array ancora da implementare!!!.');
@@ -406,6 +409,14 @@ class Entry
                     $this->value = (string)$val;
                     return;
 
+                case self::INTERNAL_FONT:
+                    if ($val instanceof InternalFont) {
+                        $this->value_type = self::INTERNAL_FONT;
+                        $this->value_inline = true;
+                        $this->value = $val;
+                        return;
+                    }
+
                 default:
                     throw new EntrySetValueException('unknown value type.' . $t);
             }
@@ -472,6 +483,7 @@ class Entry
             self::RECTANGLE,
             self::STREAM,
             self::TEXT_STRING,
+            self::INTERNAL_FONT,
         ]);
 
         // restano esclusi
@@ -542,6 +554,12 @@ class Entry
             case self::TEXT_STRING:
                 return static::scriviTextString($this->value);
 
+            case self::INTERNAL_FONT:
+                /**
+                 * @disregard P1006 nel caso di INTERNAL_FONT $this->value è sempre un oggetto InternalFont
+                 */
+                return static::scriviName($this->value->getName());
+
             default:
                 throw new PDFException('unknown value type.');
         }
@@ -567,7 +585,7 @@ class Entry
     private static function scriviNumber(float $val): string
     {
         // N.B.: uso self::$float_decimals perché così tutti i numeri hanno le stesse cifre decimali
-        $num = number_format(floatval($val), static::$float_decimals);
+        $num = number_format(floatval($val), static::$float_decimals, '.', '');
         if (static::$float_decimals <= 0)
             return $num;
 

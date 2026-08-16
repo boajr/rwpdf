@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 /**
@@ -12,9 +11,9 @@ use Boajr\PDF\PDF;
  */
 class DocumentInformationDictionary extends BaseDictionary
 {
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->addEntry('Title', Entry::TEXT_STRING, false, true, 1001, 2000);
         $this->addEntry('Author', Entry::TEXT_STRING, false, true, 1000, 2000);

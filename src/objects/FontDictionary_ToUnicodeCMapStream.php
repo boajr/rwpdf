@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 /**
@@ -11,9 +10,9 @@ use Boajr\PDF\PDF;
  */
 class FontDictionary_ToUnicodeCMapStream extends Stream
 {
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         if ($src) {
             $src->SetLinkedObject($this);

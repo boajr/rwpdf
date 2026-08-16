@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 /**
@@ -12,9 +11,9 @@ use Boajr\PDF\PDF;
  */
 class CatalogDictionary extends BaseDictionary
 {
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->addEntry('Type', Entry::NAME, true, true, 1000);
         //$this->addEntry('Version', Entry::NAME, false, true, 1004);

@@ -242,11 +242,11 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
             //case 'ASCIIHexDecode':
             //    return $str;
 
-            //case 'ASCII85Decode':
-            //    return $str;
+            case 'ASCII85Decode':
+                return $this->ASCII85Decode($str);
 
-            //case 'LZWDecode':
-            //    return $str;
+                //case 'LZWDecode':
+                //    return $str;
 
             case 'FlateDecode':
                 $predictor = 1;
@@ -260,7 +260,7 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
                     $bitsPerComponent = $this->getIntegerOrDefault($dp['BitsPerComponent'], $bitsPerComponent);
                     $columns = $this->getIntegerOrDefault($dp['Columns'], $columns);
                 }
-                return $this->filtroFlatDecode($str, $predictor, $colors, $bitsPerComponent, $columns);
+                return $this->filtroFlateDecode($str, $predictor, $colors, $bitsPerComponent, $columns);
 
                 //case 'RunLengthDecode':
                 //    return $str;
@@ -285,7 +285,59 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
         throw new PDFParserException('Unknown filter (' . $filtro->GetFinalValue() . ')');
     }
 
-    private function filtroFlatDecode(string $str, int $predictor, int $colors, int $bitsPerComponent, int $columns): string
+    // funcione generata da Gemini
+    private function ASCII85Decode(string $input): string
+    {
+        // Rimuove spazi e i marcatori Adobe <~ e ~> se presenti
+        $input = preg_replace('/\s+/', '', $input);
+        $input = ltrim($input, '<~');
+        $input = rtrim($input, '~>');
+
+        $output = '';
+        $length = strlen($input);
+        $i = 0;
+        while ($i < $length) {
+            // Gestione scorciatoia per blocchi di zeri
+            if ($input[$i] === 'z') {
+                $output .= "\0\0\0\0";
+                $i++;
+                continue;
+            }
+
+            // Estrae un blocco di 5 caratteri
+            $chunk = substr($input, $i, 5);
+            $chunkLen = strlen($chunk);
+            $i += $chunkLen;
+
+            // Padding se l'ultimo blocco è incompleto
+            if ($chunkLen < 5) {
+                $padding = 5 - $chunkLen;
+                $chunk .= str_repeat('u', $padding);
+            } else {
+                $padding = 0;
+            }
+
+            // Calcola il valore a 32 bit
+            $val = 0;
+            for ($j = 0; $j < 5; $j++) {
+                $val = $val * 85 + (ord($chunk[$j]) - 33);
+            }
+
+            // Converte in 4 byte (formato Big-Endian)
+            $bytes = pack('N', $val);
+
+            // Rimuove i byte di padding se era l'ultimo blocco
+            if ($padding > 0) {
+                $bytes = substr($bytes, 0, 4 - $padding);
+            }
+
+            $output .= $bytes;
+        }
+
+        return $output;
+    }
+
+    private function filtroFlateDecode(string $str, int $predictor, int $colors, int $bitsPerComponent, int $columns): string
     {
         if (!$str)
             return '';

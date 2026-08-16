@@ -95,16 +95,14 @@ class DataStream
             $this->offset = $matches[1][1];
 
             // cerco la fine del file
-            if (!preg_match_all('/(?:\r|\n)%%EOF/', $this->memory, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
+            if (!preg_match_all('/(?:\r|\n)%%EOF/', $this->memory, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) 
                 throw new PDFParserException('unable to find %%EOF marker');
-            }
             $matches = end($matches);
             $this->end_of_file = $matches[0][1] + strlen($matches[0][0]);
         } else {
             $this->file = @fopen($file_or_data, 'rb');
-            if (!$this->file) {
+            if (!$this->file) 
                 throw new PDFParserException('unable to open input file');
-            }
 
             // leggo il file 1024 byte per volta finché non trovo un match.
             $buf = '';
@@ -123,12 +121,10 @@ class DataStream
 
                 // leggo 1024 byte dal file
                 $tmp = @fread($this->file, 1024);
-                if ($tmp === false) {
+                if ($tmp === false) 
                     throw new PDFParserException('unable to read from file');
-                }
-                if ($tmp === '') {
+                if ($tmp === '') 
                     throw new PDFParserException('unable to find pdf header in file');
-                }
 
                 $buf .= $tmp;
             } while (!preg_match($regExp, $buf, $matches, PREG_OFFSET_CAPTURE));
@@ -138,31 +134,26 @@ class DataStream
             $this->offset += $matches[1][1];
 
             // calcolo la lunghezza del file
-            if (@fseek($this->file, 0, SEEK_END) === -1) {
+            if (@fseek($this->file, 0, SEEK_END) === -1) 
                 throw new PDFParserException('unable to read from file');
-            }
 
             $end = @ftell($this->file);
-            if ($end === false) {
+            if ($end === false) 
                 throw new PDFParserException('unable to read from file');
-            }
 
             // cerco l'ultima occorrenza di %%EOF
             $this->end_of_file = false;
             do {
                 $end -= 1018; // rileggo sempre gli ultimi 6 caratteri
-                if ($end < $this->offset) {
+                if ($end < $this->offset) 
                     $end = $this->offset;
-                }
 
-                if (@fseek($this->file, $end, SEEK_SET) === -1) {
+                if (@fseek($this->file, $end, SEEK_SET) === -1) 
                     throw new PDFParserException('unable to read from file');
-                }
 
                 $tmp = @fread($this->file, 1024);
-                if ($tmp === false) {
+                if ($tmp === false) 
                     throw new PDFParserException('unable to read from file');
-                }
 
                 if (preg_match_all('/(?:\r|\n)%%EOF/', $tmp, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
                     $matches = end($matches);
@@ -170,17 +161,15 @@ class DataStream
                 }
             } while ($this->end_of_file === false && $end > $this->offset);
 
-            if ($this->end_of_file === false) {
+            if ($this->end_of_file === false)
                 throw new PDFParserException('unable to find %%EOF marker');
-            }
         }
     }
 
     public function __destruct()
     {
-        if ($this->file) {
+        if (is_resource($this->file))
             @fclose($this->file);
-        }
     }
 
     /**

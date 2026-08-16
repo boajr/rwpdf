@@ -3,7 +3,6 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectArray;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
 
 
@@ -12,9 +11,9 @@ use Boajr\PDF\PDFException;
  */
 class Rectangle extends BaseArray
 {
-    public function __construct(PDF $pdf, PDFObjectArray|float $src_or_left, float $top = 0, float $right = 0, float $bottom = 0)
+    public function __construct(InternalState $internalState, PDFObjectArray|float $src_or_left, float $top = 0, float $right = 0, float $bottom = 0)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->setElementType(Entry::NUMBER, true);
 

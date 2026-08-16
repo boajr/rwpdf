@@ -4,9 +4,8 @@ namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\IPDFObject;
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
-use ReflectionProperty;
+
 
 //class PageGroup_CSArray extends BaseArray
 //{
@@ -56,22 +55,17 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
      */
     private ?ContentsStream $writableContents = null;
 
-    /**
-     * Collegamento alla classe internal state del pdf
-     */
-    private ?InternalState $internalState = null;
-
 
 
     public function __construct(
-        PDF $pdf,
+        InternalState $internalState,
         PDFObjectDictionary|array|null $src_or_size,
         int $rotate = 0,
         ?ResourcesDictionary $resources = null,
         ?Rectangle $mediaBox = null,
         ?Rectangle $cropBox = null
     ) {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->addEntry('Type', Entry::NAME, true, true, 1000);
         $this->addEntry('Parent', [Entry::DICTIONARY => PagesDictionary::class], true, false, 1000);
@@ -107,15 +101,13 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
         //$this->addEntry('OutputIntents', [Entry::DICTIONARY => '???'], false, false, 2000);
         //$this->addEntry('DPart', [Entry::DICTIONARY => '???'], false, false, 2000);
 
-        $this->resourcesDict = new ResourcesDictionary($pdf, $this);
-
         if ($src_or_size instanceof PDFObjectDictionary) {
             $src_or_size->SetLinkedObject($this);
             $this->constructFromParser($src_or_size, $resources, $mediaBox, $cropBox, $rotate);
         } else {
             $this->Type = 'Page';
-            $this->Resources = $this->resourcesDict;
-            $this->MediaBox = new Rectangle($pdf, 0, 0, $src_or_size[0], $src_or_size[1]);
+            $this->Resources = new ResourcesDictionary($internalState, $this);
+            $this->MediaBox = new Rectangle($internalState, 0, 0, $src_or_size[0], $src_or_size[1]);
             $this->Rotate = $rotate;
             $this->graphicsState = new GraphicsState();
         }
@@ -150,7 +142,7 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
         // aggiungo i valori passati come parametri
         if ($this->Resources)
             $resources = $this->Resources;
-        $this->Resources = $this->resourcesDict;
+        $this->Resources = new ResourcesDictionary($this->internalState, $this);
 
         if (!$this->MediaBox)
             $this->MediaBox = $mediaBox;
@@ -173,14 +165,14 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
             return;
 
         if ($type === IPDFObject::TYPE_STREAM) {
-            $this->Contents = new ContentsStream($this->pdf, $val->GetFinalValue(), $this, $this->graphicsState, $resources);
+            $this->Contents = new ContentsStream($this->internalState, $val->GetFinalValue(), $this, $this->graphicsState, $resources);
             if ($this->Contents->needContents)
                 throw new PDFException('Invalid content stream data');
             return;
         }
 
         if ($type === IPDFObject::TYPE_ARRAY) {
-            $c = new ContentsArray($this->pdf, $val->GetFinalValue(), $this, $this->graphicsState, $resources);
+            $c = new ContentsArray($this->internalState, $val->GetFinalValue(), $this, $this->graphicsState, $resources);
             $this->Contents = count($c) == 1 ? $c[0] : $c;
             return;
         }
@@ -204,13 +196,13 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
     private function getWritableContents(): ContentsStream
     {
         if (!$this->writableContents) {
-            $this->writableContents = new ContentsStream($this->pdf, null, $this, $this->graphicsState, $this->Resources);
+            $this->writableContents = new ContentsStream($this->internalState, null, $this, $this->graphicsState, $this->Resources);
 
             if (!$this->Contents)
                 $this->Contents = $this->writableContents;
             else {
                 if ($this->Contents instanceof ContentsStream) {
-                    $c = new ContentsArray($this->pdf);
+                    $c = new ContentsArray($this->internalState);
                     $c[] = $this->Contents;
                     $this->Contents = $c;
                 }
@@ -219,17 +211,6 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
         }
 
         return $this->writableContents;
-    }
-
-    /**
-     * funzione che rstituisce l'internalState del pdf
-     */
-    private function getInternalState(): InternalState
-    {
-        if (!$this->internalState) {
-            $this->internalState = new ReflectionProperty($this->pdf, 'internalState')->getValue($this->pdf);
-        }
-        return $this->internalState;
     }
 
     /**
@@ -259,72 +240,147 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
     }
 
     /**
-     * funzione che verifica se devo modificare il graphicState prima di fare un riempiemento
+     * funzione che verifica se devo modificare il graphicState prima di fare un riempimento
      */
-    private function writeGSForFill(ContentsStream $c): void
+    private function setFillParams(ContentsStream $c, array $fillColor): void
     {
-        $is = $this->getInternalState();
         $gs = $this->graphicsState;
 
         // seleziono il colore da utilizzare per il riempimento
-        $count = count($is->fillColor);
+        $count = count($fillColor);
         if (
             !is_string($gs->color_space) ||
             !in_array($gs->color_space, ['DeviceGray', 'DeviceRGB']) ||
             count($gs->color) != $count ||
-            $gs->color !== $is->fillColor
+            $gs->color !== $fillColor
         ) {
             if ($count == 3)
-                $c->AppendOperators('rg', $is->fillColor[0], $is->fillColor[1], $is->fillColor[2]);
+                $c->AppendOperator('rg', $fillColor[0], $fillColor[1], $fillColor[2]);
             else if ($count == 1)
-                $c->AppendOperators('g', $is->fillColor[0]);
+                $c->AppendOperator('g', $fillColor[0]);
         }
+    }
+
+    private function writeGSForFill(ContentsStream $c): void
+    {
+        $is = $this->internalState;
+        $this->setFillParams($c, $is->fillColor);
     }
 
     /**
      * funzione che inserisce nell'internalState i valori per utilizzare un riempimento
      */
-    private function writeGSForStroke(ContentsStream $c): void
+    private function setStrokeParams(ContentsStream $c, array $drawColor, float $lineWidth, ?int $lineCap, ?int $lineJoin, ?float $miterLimit): void
     {
-        $is = $this->getInternalState();
         $gs = $this->graphicsState;
 
         // seleziono il colore da utilizzare per la grafica
-        $count = count($is->drawColor);
+        $count = count($drawColor);
         if (
             !is_string($gs->color_space_stroking) ||
             !in_array($gs->color_space_stroking, ['DeviceGray', 'DeviceRGB']) ||
             count($gs->color_stroking) != $count ||
-            $gs->color_stroking !== $is->drawColor
+            $gs->color_stroking !== $drawColor
         ) {
             if ($count == 3)
-                $c->AppendOperators('RG', $is->drawColor[0], $is->drawColor[1], $is->drawColor[2]);
+                $c->AppendOperator('RG', $drawColor[0], $drawColor[1], $drawColor[2]);
             else if ($count == 1)
-                $c->AppendOperators('G', $is->drawColor[0]);
+                $c->AppendOperator('G', $drawColor[0]);
         }
 
         // seleziono lo spessore della linea
-        if ($gs->line_width != $is->lineWidth)
-            $c->AppendOperators('w', $is->lineWidth);
+        if ($gs->line_width != $lineWidth)
+            $c->AppendOperator('w', $lineWidth);
 
         // seleziono i butt caps
-        if ($gs->line_cap != $is->lineCap)
-            $c->AppendOperators('J', $is->lineCap);
+        if ($lineCap !== null && $gs->line_cap != $lineCap)
+            $c->AppendOperator('J', $lineCap);
 
-        // seleziono i mitered joins e il mitter limit
-        if ($gs->line_join != $is->lineJoin)
-            $c->AppendOperators('j', $is->lineJoin);
+        // seleziono i mitered joins e il miter limit
+        if ($lineJoin !== null && $gs->line_join != $lineJoin)
+            $c->AppendOperator('j', $lineJoin);
 
-        // seleziono i mitered joins
-        if ($is->lineJoin == 0 && $gs->miter_limit != $is->miterLimit)
-            $c->AppendOperators('M', $is->miterLimit);
+        if ($miterLimit !== null && $lineJoin == 0 && $gs->miter_limit != $miterLimit)
+            $c->AppendOperator('M', $miterLimit);
 
 
         //public array $dash_pattern = [[], 0];
 
+    }
 
-        //print_r($is);
-        //print_r($gs);
+    private function writeGSForStroke(ContentsStream $c): void
+    {
+        $is = $this->internalState;
+        $this->setStrokeParams($c, $is->drawColor, $is->lineWidth, $is->lineCap, $is->lineJoin, $is->miterLimit);
+    }
+
+    private function WriteGSForText(ContentsStream $c, bool $setLeading): void
+    {
+        $is = $this->internalState;
+        $gs = $this->graphicsState;
+
+        // seleziono lo spazio tra i caratteri
+        if ($gs->text_state->Tc != $is->letterSpacing)
+            $c->AppendOperator('Tc', $is->letterSpacing);
+
+        // seleziono lo spazio tra le parole
+        if ($gs->text_state->Tw != $is->wordSpacing)
+            $c->AppendOperator('Tz', $is->wordSpacing);
+
+        // seleziono la font width (Horizontal scaling)
+        if ($gs->text_state->Th != $is->fontWidth)
+            $c->AppendOperator('Tz', $is->fontWidth);
+
+        // seleziono la line height
+        if ($setLeading) {
+            $leading = $is->lineHeight[1] == 'rel' ? $is->lineHeight[0] * $is->fontSize : $is->lineHeight[0];
+            if ($gs->text_state->Tl != $leading)
+                $c->AppendOperator('TL', $leading);
+        }
+
+        // seleziono il tipo e la dimensione del testo
+        $font = $is->getFont();
+        if (!$font->isSameFont($gs->text_state->Tf) || $gs->text_state->Tfs != $is->fontSize)
+            $c->AppendFontOperator($font, $is->fontSize);
+
+        // seleziono come disegnare il font
+        $f = $is->textColor !== null;
+        $s = $is->textStroking[0] !== 0 && $is->textStroking[1] !== null;
+        $tmode = $f ? ($s ? 2 : 0) : ($s ? 1 : 3);
+        if ($gs->text_state->Tmode != $tmode)
+            $c->AppendOperator('Tr', $tmode);
+
+        // seleziono i colori da utilizzare per disegnare il font
+        if ($f)
+            $this->setFillParams($c, $is->textColor);
+
+        if ($s)
+            $this->setStrokeParams(
+                $c,
+                $is->textStroking[1],
+                $is->textStroking[0],
+                null,
+                $is->textStroking[2] !== null ? $is->textStroking[2] : $is->lineJoin,
+                $is->textStroking[3] !== null ? $is->textStroking[3] : $is->miterLimit
+            );
+
+        // seleziono lo spostamento verticale del carattere   Trise Text rise
+        if ($gs->text_state->Trise != $is->textRise)
+            $c->AppendOperator('Ts', $is->textRise);
+    }
+
+    private function writeGSForTextDecoration(ContentsStream $c): void
+    {
+        $is = $this->internalState;
+        if ($is->textStroking[0] !== 0 && $is->textStroking[1] !== null) {
+            // se il font ha un bordo, la sottolineatura avrà lo stesso colore
+            // e lo stesso spessore del bordo, invece il cap sara stondato se
+            // il miter join è stondato, squadrato altrimenti
+            $this->setStrokeParams($c,$is->textStroking[1],$is->textStroking[0],$is->lineJoin == 1 ? 1 : 2,null,null);
+        } else {
+            // la sottolinatura per i caratteri normali avrà il colore del font e lo spessore predefinito nel font stesso
+            $this->setStrokeParams($c, $is->textColor, $this->graphicsState->getDecorationWidth($is->textDecoration), 0, null, null);
+        }
     }
 
 
@@ -339,7 +395,7 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
             $this->MediaBox->right = $size[0] / $userUnit;
             $this->MediaBox->bottom = $size[1] / $userUnit;
         } else {
-            $this->MediaBox = new Rectangle($this->pdf, 0, 0, $size[0] / $userUnit, $size[1] / $userUnit);
+            $this->MediaBox = new Rectangle($this->internalState, 0, 0, $size[0] / $userUnit, $size[1] / $userUnit);
         }
         $this->CropBox = null;
     }
@@ -347,26 +403,26 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
     public function MoveTo(float $x, float $y): void
     {
         $c = $this->getWritableContents();
-        $c->AppendOperators('m', $this->adjX($x), $this->adjY($y));
+        $c->AppendOperator('m', $this->adjX($x), $this->adjY($y));
     }
 
     public function LineTo(float $x, float $y): void
     {
         $c = $this->getWritableContents();
-        $c->AppendOperators('l', $this->adjX($x), $this->adjY($y));
+        $c->AppendOperator('l', $this->adjX($x), $this->adjY($y));
     }
 
     public function Rect(float $x, float $y, float $w, float $h): void
     {
         $c = $this->getWritableContents();
-        $c->AppendOperators('re', $this->adjX($x), $this->adjY($y), $this->adjSz($w), -$this->adjSz($h));
+        $c->AppendOperator('re', $this->adjX($x), $this->adjY($y), $this->adjSz($w), -$this->adjSz($h));
     }
 
     public function Fill(bool $evenOddRule = false): void
     {
         $c = $this->getWritableContents();
         $this->writeGSForFill($c);
-        $c->AppendOperators($evenOddRule ? 'f*' : 'f');
+        $c->AppendOperator($evenOddRule ? 'f*' : 'f');
     }
 
     public function FillAndStroke(bool $closePath = false, bool $evenOddRule = false): void
@@ -374,13 +430,82 @@ class PageDictionary extends BaseDictionary implements IResourcesWriter
         $c = $this->getWritableContents();
         $this->writeGSForFill($c);
         $this->writeGSForStroke($c);
-        $c->AppendOperators(($closePath ? 'b' : 'B') . ($evenOddRule ? '*' : ''));
+        $c->AppendOperator(($closePath ? 'b' : 'B') . ($evenOddRule ? '*' : ''));
     }
 
     public function Stroke(bool $closePath = false): void
     {
         $c = $this->getWritableContents();
         $this->writeGSForStroke($c);
-        $c->AppendOperators($closePath ? 's' : 'S');
+        $c->AppendOperator($closePath ? 's' : 'S');
+    }
+
+
+
+
+
+    private function BeginText(float $x = 0, float $y = 0, float $rotation = 0)
+    {
+        //$is = $this->internalState;
+        $gs = $this->graphicsState;
+
+        // se è cambiato il Text knockout devo creare un grafic state esteso e caricarlo
+        if ($gs->text_state->Tk !== true)
+            echo 'TODO: settare il knockout a true' . PHP_EOL;
+
+        $c = $this->getWritableContents();
+        $c->AppendOperator('BT');
+
+        $rotation = fmod($rotation, 360);
+        if ($rotation) {
+            $rad = $rotation * M_PI / 360;
+            $cos = cos($rad);
+            $sin = sin($rad);
+            $c->AppendOperator('Tm', $cos, $sin, -$sin, $cos, $this->adjX($x), $this->adjY($y));
+        } elseif ($x || $y)
+            $c->AppendOperator('Td', $this->adjX($x), $this->adjY($y));
+    }
+
+    //public function EndText()
+    //{
+    //    $c = $this->getWritableContents();
+    //    $c->AppendOperator('ET');
+    //}
+
+
+    public function PlainText(float $x, float $y, string $text, float $rotation = 0): float
+    {
+        // inizializzo la scrittura del testo
+        $this->BeginText($x, $y, $rotation);
+
+        // imposto il font da usare
+        $c = $this->getWritableContents();
+        $this->writeGSForText($c, true);
+
+        // salvo le coordinate iniziali per la sottolineatura
+        $d = $this->internalState->textDecoration;
+        if ($d) 
+            [$xi, $yi] = $this->graphicsState->getDecorationPosition($d);
+
+        // scrivo il testo
+        $c->AppendTextOperator($text);
+
+        // salvo le coordinate finali per la sottolineatura
+        if ($d)
+            [$xf, $yf] = $this->graphicsState->getDecorationPosition($d);
+
+        // chiude la sessione di testo
+        $c->AppendOperator('ET');
+
+        // disegno l'eventuale sottolineatura
+        if ($d) {
+            $this->writeGSForTextDecoration($c);
+            $c->AppendOperator('m', $xi, $yi);
+            $c->AppendOperator('l', $xf, $yf);
+            $c->AppendOperator('S');
+        }
+
+        // restituisco la lunghezza del testo scritto
+        return 0;
     }
 }

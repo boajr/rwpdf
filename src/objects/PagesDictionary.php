@@ -4,9 +4,7 @@ namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\IPDFObject;
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 use Boajr\PDF\PDFException;
-use ReflectionMethod;
 
 
 /**
@@ -15,14 +13,14 @@ use ReflectionMethod;
 class PagesDictionary extends BaseDictionary
 {
     public function __construct(
-        PDF $pdf,
+        InternalState $internalState,
         PDFObjectDictionary|PagesDictionary|null $src_or_parent,
         ResourcesDictionary|array|null $resources_or_pages = null,
         ?Rectangle $mediaBox = null,
         ?Rectangle $cropBox = null,
         int $rotate = 0
     ) {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->addEntry('Type', Entry::NAME, true, true, 1000);
         $this->addEntry('Parent', [Entry::DICTIONARY => PagesDictionary::class], false, false, 1000);
@@ -73,7 +71,6 @@ class PagesDictionary extends BaseDictionary
         if (!$kids)
             return;
 
-        $pushPage = new ReflectionMethod($this->pdf, 'pushPage');
         foreach ($kids as $kid) {
             if ($kid->GetFinalType() !== IPDFObject::TYPE_DICTIONARY)
                 throw new PDFException("Unable to set value in Kids array in " . $this->dictionaryName() . ': wrong type.');
@@ -86,11 +83,11 @@ class PagesDictionary extends BaseDictionary
             if ($type && $type->GetFinalType() === IPDFObject::TYPE_NAME) {
                 $type = $type->GetFinalValue();
                 if ($type === 'Pages') {
-                    new PagesDictionary($this->pdf, $kid, $resources, $mediaBox, $cropBox, $rotate);
+                    new PagesDictionary($this->internalState, $kid, $resources, $mediaBox, $cropBox, $rotate);
                     continue;
                 }
                 if ($type === 'Page') {
-                    $pushPage->invoke($this->pdf, new PageDictionary($this->pdf, $kid, $rotate, $resources, $mediaBox, $cropBox));
+                    $this->internalState->PushPage(new PageDictionary($this->internalState, $kid, $rotate, $resources, $mediaBox, $cropBox));
                     continue;
                 }
             }
@@ -113,8 +110,7 @@ class PagesDictionary extends BaseDictionary
         $mbRect = $mediaBox ? $mediaBox->toJson() : '';
 
         // processo tutti gli elementi dell'array pages
-        $pushResources = new ReflectionMethod($this->pdf, 'pushResources');
-        $this->Kids = new PagesDictionary_KidsArray($this->pdf);
+        $this->Kids = new PagesDictionary_KidsArray($this->internalState);
         $this->Count = 0;
         foreach ($pages as $kid) {
             if ($kid instanceof PageDictionary) {
@@ -124,10 +120,10 @@ class PagesDictionary extends BaseDictionary
                 ++$this->Count;
 
                 // aggiungo anche le risorse all'array globale
-                $pushResources->invoke($this->pdf, $kid);
+                $this->internalState->PushResources($kid);
             } else if (is_array($kid)) {
                 // se l'elemento è un array, creo un pages dictionary figlio
-                $kid = new PagesDictionary($this->pdf, $this, $kid, $mediaBox);
+                $kid = new PagesDictionary($this->internalState, $this, $kid, $mediaBox);
 
                 // se il dictionary appena creato non ha pagine, lo ignoro
                 if ($kid->Count <= 0)
@@ -172,7 +168,7 @@ class PagesDictionary extends BaseDictionary
         // verifica qual è il media box più usato e lo mette come default
         $def = $this->arrayWithMoreValues($mb, $mbRect);
         if ($def)
-            $this->MediaBox = new Rectangle($this->pdf, ...json_decode($def, true));
+            $this->MediaBox = new Rectangle($this->internalState, ...json_decode($def, true));
         else
             unset($this->MediaBox);
         foreach ($mb[$def] as $kid) {
@@ -182,7 +178,7 @@ class PagesDictionary extends BaseDictionary
         // verifica qual è il crop box più usato e lo mette come default
         $def = $this->arrayWithMoreValues($cb, '');
         if ($def)
-            $this->CropBox = new Rectangle($this->pdf, ...json_decode($def, true));
+            $this->CropBox = new Rectangle($this->internalState, ...json_decode($def, true));
         else
             unset($this->CropBox);
         foreach ($cb[$def] as $kid) {

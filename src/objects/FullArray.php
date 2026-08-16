@@ -103,7 +103,7 @@ class FullArray extends BaseArray implements ArrayAccess, Countable, Iterator
     // alcune funzioni che possono servire
     public function insert(int $pos, mixed $elem): void
     {
-        $e = new Entry($this->pdf, $this->content_type, false, 1000, 999999);
+        $e = new Entry($this->internalState, $this->content_type, false, 1000, 999999);
         try {
             $e->setValue($elem);
         } catch (EntrySetValueException $ex) {

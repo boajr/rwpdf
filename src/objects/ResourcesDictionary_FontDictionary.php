@@ -3,14 +3,13 @@
 namespace Boajr\PDF\Objects;
 
 use Boajr\PDF\Parser\PDFObjectDictionary;
-use Boajr\PDF\PDF;
 
 
 class ResourcesDictionary_FontDictionary extends GenericDictionary
 {
-    public function __construct(PDF $pdf, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
     {
-        $this->pdf = $pdf;
+        $this->internalState = $internalState;
 
         $this->setElementType([Entry::DICTIONARY => FontDictionary::class], false);
 

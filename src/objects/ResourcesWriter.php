@@ -2,13 +2,8 @@
 
 namespace Boajr\PDF\Objects;
 
-use ReflectionMethod;
-
 
 /**
- * @mixin BaseDictionary
- * @property \Boajr\PDF\PDF $pdf 
- * 
  * @mixin IResourcesWriter
  * @method   int getProcSet()
  * 
@@ -20,6 +15,9 @@ use ReflectionMethod;
  */
 trait ResourcesWriter
 {
+// protected InternalState $internalState;
+
+
     /**
      * possibili valori che possono essere inseriti nel ProcSet
      */
@@ -35,7 +33,7 @@ trait ResourcesWriter
     /**
      * array che memorizza i font usati dai contents stream
      */
-    private ?ResourcesDictionary_FontDictionary $FontDictionary = null;
+    private ?array $fontDictionary = null;
 
 
 
@@ -56,13 +54,6 @@ trait ResourcesWriter
     private int $resourcesOffset = 0;
 
 
-    /**
-     * caching di un po' di metodi
-     */
-    private ?ReflectionMethod $getIResourcesWritersMethod = null;
-    private ?ReflectionMethod $pushSingleResourceMethod = null;
-
-
     public function getResourcesHash(bool $force = false): string
     {
         if (!$force && $this->hash)
@@ -74,11 +65,14 @@ trait ResourcesWriter
         hash_update($ctx, $this->getProcSet());
 
         // aggiunge tutti gli id dei font (ordinati in modo crescente)...
-        $a = $this->FontDictionary->getDictionaryKeys();
-        sort($a);
-        foreach ($a as $k)
-            hash_update($ctx, $k);
-
+        if ($this->fontDictionary) {
+            $a = [];
+            foreach ($this->fontDictionary as $f)
+                $a[] = $f->getPostScriptName();
+            sort($a);
+            foreach ($a as $k)
+                hash_update($ctx, $k);
+        }
 
 
 
@@ -87,22 +81,14 @@ trait ResourcesWriter
         return $this->hash;
     }
 
-    private function getWriters(): array
-    {
-        if (!$this->getIResourcesWritersMethod) {
-            $this->getIResourcesWritersMethod = new ReflectionMethod($this->pdf, 'getIResourcesWriters');
-        }
-        return $this->getIResourcesWritersMethod->Invoke($this->pdf, $this->getResourcesHash());
-    }
-
     public function isResourcesInLine(): bool
     {
-        return count($this->getWriters()) <= 1;
+        return count($this->internalState->getIResourcesWriters($this->getResourcesHash())) <= 1;
     }
 
     public function appendResources(array &$objs, bool $inline): int
     {
-        $writers = $this->getWriters();
+        $writers = $this->internalState->getIResourcesWriters($this->getResourcesHash());
 
         // solo il primo writers dell'elenco ricrea le risorse, gli altri lo richiamano
         if ($writers[0] !== $this)
@@ -128,10 +114,12 @@ trait ResourcesWriter
             // aggiungo l'XObject dictionary (min ver )
 
             // aggiungo il Font dictionary (min ver 1.0)
-            if ($this->FontDictionary) {
-                $v = $this->FontDictionary->appendObject($objs, true);
-                if ($ver < $v) {
-                    $ver = $v;
+            if ($this->fontDictionary) {
+                // il font dictionary in una risorsa è sempre inline quindi devo aggiungere solo i font (che non sono inline)
+                foreach ($this->fontDictionary as $f) {
+                    $v = $f->appendObject($objs, false);
+                    if ($ver < $v)
+                        $ver = $v;
                 }
             }
 
@@ -188,8 +176,12 @@ trait ResourcesWriter
         //print 'TODO: ricreare l\'XObject dictionary';
 
         // aggiungo il Font dictionary (min ver 1.0)
-        if ($this->FontDictionary)
-            $out .= '/Font' . $this->FontDictionary->getInlineObject($ver);
+        if ($this->fontDictionary) {
+            $out .= '/Font<<';
+            foreach ($this->fontDictionary as $f)
+                $out .= $f->getNameAndObjectReference();
+            $out .= '>>';
+        }
 
         // scrivo ProcSet se ho almeno una voce e se la versione è inferiore alla 2.0
         $procSet = $this->getProcSet();
@@ -228,27 +220,22 @@ trait ResourcesWriter
         return $this->resourcesOffset;
     }
 
-    /**
-     * Qui inizia la possibilità di aggiungere risorse all'oggetto
-     */
-    private function pushSingleResource(string $type, object $obj): array
+    public function addFont(FontDictionary|InternalFont $font): InternalFont
     {
-        if (!$this->pushSingleResourceMethod)
-            $this->pushSingleResourceMethod = new ReflectionMethod($this->pdf, 'pushSingleResource');
-        return $this->pushSingleResourceMethod->Invoke($this->pdf, $type, $obj);
-    }
-
-    public function addFont(FontDictionary $font): string
-    {
-        // chiede al PDF se il font è già presente
-        [$idx, $font] = $this->pushSingleResource('font', $font);
-
+        print '***** addFont' . PHP_EOL;
         // aggiunge il font alle risorse
-        if (!$this->FontDictionary)
-            $this->FontDictionary = new ResourcesDictionary_FontDictionary($this->pdf);
+        if (!$this->fontDictionary)
+            $this->fontDictionary = [];
 
-        $name = 'F' . $idx;
-        $this->FontDictionary->$name = $font;
-        return $name;
+        if ($font instanceof FontDictionary)
+            $font = $font->toInternalFont();
+
+        foreach ($this->fontDictionary as $f) {
+            if ($font->isSameFont($f))
+                return $f;
+        }
+
+        $this->fontDictionary[] = $font;
+        return $font;
     }
 }
