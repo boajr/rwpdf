@@ -405,7 +405,7 @@ class InternalState
                 try {
                     $ttf = new Font(static::$fontpath . $file);
 
-                    $fam = $ttf->family;
+                    $fam = strtolower($ttf->family);
                     if (!array_key_exists($fam, $f))
                         $f[$fam] = [];
 

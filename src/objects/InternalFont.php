@@ -190,7 +190,7 @@ end
                 // devo aggiungere lo stream del font al FontDescriptor
                 if ($this->font->isTrueType()) {
                     $this->tmpFD->FontDescriptor->FontFile2 = new FontDescriptorDictionary_ProgramStream($this->internalState, FontDescriptorDictionary_ProgramStream::TrueType, $this->font->toFile($this->usedChars));
-                    $ver = 10001;
+                    $ver = 1001;
                 } else {
             throw new PDFException('TODO: gestire i font OpenType ecc...');
                 }
@@ -354,7 +354,7 @@ end
                         break;
                     }
 
-                    $ord = $encChars[$ch];
+                    $ord = ord($encChars[$ch]);
 
                     if ($this->firstChar > $ord)
                         $this->firstChar = $ord;
