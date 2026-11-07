@@ -380,7 +380,7 @@ class PDF implements Stringable
             unset($this->root->Pages->Rotate);
 
         // ???
-        print 'TODO: eliminare tutti i box che prenderebbero i valori di default' . PHP_EOL;
+        echo 'TODO: eliminare tutti i box che prenderebbero i valori di default' . PHP_EOL;
 
         // riduce la dimensione delle risorse accorpando quelle uguali
         $this->internalState->shrinkResources();

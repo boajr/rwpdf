@@ -11,27 +11,27 @@ use Boajr\PDF\Parser\PDFObjectDictionary;
  */
 class FontDescriptorDictionary extends BaseDictionary
 {
-    public function __construct(InternalState $internalState, ?PDFObjectDictionary $src = null)
+    public function __construct(InternalState $internalState, object $src)
     {
         $this->internalState = $internalState;
 
         $this->addEntry('Type', Entry::NAME, true, true, 1000);
         $this->addEntry('FontName', Entry::NAME, true, true, 1000);
-        //$this->addEntry('FontFamily', Entry::BYTE_STRING, false, true, 1005);
-        //$this->addEntry('FontStretch', Entry::NAME, false, true, 1005);
-        //$this->addEntry('FontWeight', Entry::NUMBER, false, true, 1005);
+        $this->addEntry('FontFamily', Entry::BYTE_STRING, false, true, 1005);
+        $this->addEntry('FontStretch', Entry::NAME, false, true, 1005);
+        $this->addEntry('FontWeight', Entry::NUMBER, false, true, 1005);
         $this->addEntry('Flags', Entry::INTEGER, true, true, 1000);
         $this->addEntry('FontBBox', Entry::RECTANGLE, false, true, 1000);
         $this->addEntry('ItalicAngle', Entry::NUMBER, true, true, 1000);
         $this->addEntry('Ascent', Entry::NUMBER, false, true, 1000);
         $this->addEntry('Descent', Entry::NUMBER, false, true, 1000);
-        //$this->addEntry('Leading', Entry::NUMBER, false, true, 1000);
+        $this->addEntry('Leading', Entry::NUMBER, false, true, 1000);
         $this->addEntry('CapHeight', Entry::NUMBER, false, true, 1000);
         $this->addEntry('XHeight', Entry::NUMBER, false, true, 1000);
         $this->addEntry('StemV', Entry::NUMBER, false, true, 1000);
-        //$this->addEntry('StemH', Entry::NUMBER, false, true, 1000);
-        //$this->addEntry('AvgWidth', Entry::NUMBER, false, true, 1000);
-        //$this->addEntry('MaxWidth', Entry::NUMBER, false, true, 1000);
+        $this->addEntry('StemH', Entry::NUMBER, false, true, 1000);
+        $this->addEntry('AvgWidth', Entry::NUMBER, false, true, 1000);
+        $this->addEntry('MaxWidth', Entry::NUMBER, false, true, 1000);
         $this->addEntry('MissingWidth', Entry::NUMBER, false, true, 1000);
         $this->addEntry('FontFile', [Entry::STREAM => FontDescriptorDictionary_ProgramStream::class], false, false, 1000);
         $this->addEntry('FontFile2', [Entry::STREAM => FontDescriptorDictionary_ProgramStream::class], false, false, 1001);
@@ -45,9 +45,18 @@ class FontDescriptorDictionary extends BaseDictionary
         //$this->addEntry('CIDSet', [Entry::STREAM => 'Font_CIDSetStream'], false, false, 1000, 2000);
 
 
-        if ($src) {
+        if ($src instanceof PDFObjectDictionary) {
             $src->SetLinkedObject($this);
             $this->setData($src);
+        } else {
+            $this->Type = 'FontDescriptor';
+            foreach (get_object_vars($src) as $k => $v)
+                if ($v !== null) {
+                    if ($k == 'FontBBox')
+                        $this->FontBBox = new Rectangle($this->internalState, $v->xMin, $v->yMin, $v->xMax, $v->yMax);
+                    else
+                        $this->$k = $v;
+                }
         }
     }
 
@@ -57,7 +66,7 @@ class FontDescriptorDictionary extends BaseDictionary
         $ver = parent::appendObject($objs, $inline);
         //if ($ver < 1003 && $this->FontFile2 && $this->)
 
-        //print 'TODO: la versione del pdf dipende dal tipo di font che viene incluso.' . PHP_EOL;
+        //echo 'TODO: la versione del pdf dipende dal tipo di font che viene incluso.' . PHP_EOL;
 
         return $ver;
     }

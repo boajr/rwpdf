@@ -124,18 +124,21 @@ class GraphicsState
         $this->textMatrix = $this->textLineMatrix;
     }
 
-    public function addUsedChars(ContentsStream_TextArray|string $text)
+    public function decodeText(ContentsStream_TextArray|string $text): ContentsStream_TextArray|string
     {
         if (!$this->text_state->Tf)
-            throw new PDFException('choose a text font before call addUsedChars');
+            throw new PDFException('choose a text font before call decodeText');
 
         if ($text instanceof ContentsStream_TextArray) {
-            foreach ($text as $t) {
-                if (is_string($t))
-                    $this->text_state->Tf->addUsedChars($t, $this->text_state->encoding);
+            $len = count($text);
+            for($i=0; $i<$len; ++$i) {
+                if (is_string($text[$i]))
+                    $text[$i] = $this->text_state->Tf->decodeString($text[$i], $this->text_state->encoding);
             }
-        } else
-            $this->text_state->Tf->addUsedChars($text, $this->text_state->encoding);
+            return $text;
+        }
+
+        return $this->text_state->Tf->decodeString($text, $this->text_state->encoding);
     }
 
     public function processText(string $text): array

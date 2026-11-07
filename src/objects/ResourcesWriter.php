@@ -161,19 +161,19 @@ trait ResourcesWriter
 
 
         // aggiungo l'ExtGState dictionary (min ver )
-        //print 'TODO: ricreare l\'ExtGState dictionary';
+        //echo 'TODO: ricreare l\'ExtGState dictionary';
 
         // aggiungo il ColorSpace dictionary (min ver )
-        //print 'TODO: ricreare il ColorSpace dictionary';
+        //echo 'TODO: ricreare il ColorSpace dictionary';
 
         // aggiungo il Pattern dictionary (min ver )
-        //print 'TODO: ricreare il ColorSpace dictionary';
+        //echo 'TODO: ricreare il ColorSpace dictionary';
 
         // aggiungo il Shading dictionary (min ver )
-        //print 'TODO: ricreare il Pattern dictionary';
+        //echo 'TODO: ricreare il Pattern dictionary';
 
         // aggiungo l'XObject dictionary (min ver )
-        //print 'TODO: ricreare l\'XObject dictionary';
+        //echo 'TODO: ricreare l\'XObject dictionary';
 
         // aggiungo il Font dictionary (min ver 1.0)
         if ($this->fontDictionary) {
@@ -222,7 +222,7 @@ trait ResourcesWriter
 
     public function addFont(FontDictionary|InternalFont $font): InternalFont
     {
-        print '***** addFont' . PHP_EOL;
+        echo '***** addFont' . PHP_EOL;
         // aggiunge il font alle risorse
         if (!$this->fontDictionary)
             $this->fontDictionary = [];

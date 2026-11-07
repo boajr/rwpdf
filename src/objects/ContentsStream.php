@@ -170,6 +170,7 @@ class ContentsStream extends Stream
     public function AppendOperator(string $operator, mixed ...$parameters): void
     {
         $p = null;
+        $needFont = false;
 
         if ($operator === 'q') {
             $this->graphicsState->save();
@@ -267,7 +268,8 @@ class ContentsStream extends Stream
                                     break;
                             }
                         } else if ($value == 'setText') {
-                            $this->graphicsState->addUsedChars($p[$state]->getValue());
+                            $p[$state]->setValue($this->graphicsState->decodeText($p[$state]->getValue()));
+                            $needFont = true;
                         } else {
                             if ($value && is_string($value)) {
                                 if ($value[0] == '$') {
@@ -287,7 +289,7 @@ class ContentsStream extends Stream
                 if ($this->graphicsState->throwIfUnknown)
                     throw new PDFException('invalid operator');
 
-                print $operator . PHP_EOL;
+                echo $operator . PHP_EOL;
 
                 if ($parameters) {
                     $p = [];
@@ -311,7 +313,7 @@ class ContentsStream extends Stream
                 }
             }
         }
-        $this->operators[] = ['o' => $operator, 'p' => $p];
+        $this->operators[] = $needFont ? ['o' => $operator, 'p' => $p, 'font' => $this->graphicsState->text_state->Tf] : ['o' => $operator, 'p' => $p];
     }
 
     public function AppendFontOperator(InternalFont $font, float $size): void
@@ -334,11 +336,11 @@ class ContentsStream extends Stream
         if (is_array($text)) {
             $t = new Entry($this->internalState, [Entry::ARRAY => true], true, 1000, 999999);
             $t->setValue($text);
-            $this->operators[] = ['o' => 'TJ', 'p' => ['array' => $t]];
+            $this->operators[] = ['o' => 'TJ', 'p' => ['array' => $t], 'font' => $this->graphicsState->text_state->Tf];
         } else {
             $t = new Entry($this->internalState, [Entry::TEXT_STRING => true], true, 1000, 999999);
             $t->setValue($text);
-            $this->operators[] = ['o' => 'Tj', 'p' => ['string' => $t]];
+            $this->operators[] = ['o' => 'Tj', 'p' => ['string' => $t], 'font' => $this->graphicsState->text_state->Tf];
         }
         return $width;
     }
@@ -352,38 +354,55 @@ class ContentsStream extends Stream
     {
         $ps = $this->procSet;
 
-        print 'TODO: scorrere tutte le risorse per vedere se devo aggiungere altri procset' . PHP_EOL;
+        echo 'TODO: scorrere tutte le risorse per vedere se devo aggiungere altri procset' . PHP_EOL;
 
         return $ps;
     }
 
 
 
-    private function getOperatorOutput(int $ver, string $op, ?array $parms): string
-    {
-        $out = '';
-        if ($parms) {
-            foreach ($parms as $entry) {
-                if ($entry->startWithSeparator() || ($out != '' && strpos(" \t\r\n\f()<>[]/%", $out[strlen($out) - 1]) !== false)) {
-                    $out .= $entry->getOutput($ver);
-                    continue;
-                }
-                $out .= ' ' . $entry->getOutput($ver);
-            }
-        }
-        return $out . ($out != '' && strpos(" \t\r\n\f()<>[]/%", $out[strlen($out) - 1]) ? '' : ' ') . $op;
-    }
-
     protected function get_stream_data(int $ver): string
     {
         $first = true;
         $data = '';
         foreach ($this->operators as $op) {
+            // se dovo scrivere una stringa di testo, la codifico
+            if (in_array($op['o'], ['Tj', '\'', '"'])) {
+                $t = new Entry($this->internalState, [Entry::TEXT_STRING => true], true, 1000, 999999);
+                $t->setValue($op['font']->encodeString($op['p']['string']->getValue()));
+                $parms = ['string' => $t];
+            } elseif ($op['o'] == 'TJ') {
+                $a = $op['p']['array']->getValue();
+                $len = count($a);
+                $n = [];
+                for ($i = 0; $i < $len; ++$i) {
+                        $n[] = is_string($a[$i]) ? $op['font']->encodeString($a[$i]) : $a[$i];
+                }
+                $t = new Entry($this->internalState, [Entry::ARRAY => [ContentsStream_TextArray::class => true]], true, 1000, 999999);
+                $t->setValue(new ContentsStream_TextArray($this->internalState, $n));
+                $parms = ['array' => $t];
+            } else
+                $parms = $op['p'];
+
+            // creo la stringa dell'operatore da aggiungere all'output
+            $out = '';
+            if ($parms) {
+                foreach ($parms as $entry) {
+                    if ($entry->startWithSeparator() || ($out != '' && strpos(" \t\r\n\f()<>[]/%", $out[strlen($out) - 1]) !== false)) {
+                        $out .= $entry->getOutput($ver);
+                        continue;
+                    }
+                    $out .= ' ' . $entry->getOutput($ver);
+                }
+            }
+            $out .= ($out != '' && strpos(" \t\r\n\f()<>[]/%", $out[strlen($out) - 1]) ? '' : ' ') . $op['o'];
+
+            // aggiungo l'operatore all'output
             if ($first) {
-                $data = ltrim($this->getOperatorOutput($ver, $op['o'], $op['p']));
+                $data = ltrim($out);
                 $first = false;
             } else {
-                $data .= $this->getOperatorOutput($ver, $op['o'], $op['p']);
+                $data .= $out;
             }
         }
 

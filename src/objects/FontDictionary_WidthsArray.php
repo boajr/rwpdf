@@ -5,7 +5,7 @@ namespace Boajr\PDF\Objects;
 use Boajr\PDF\Parser\PDFObjectArray;
 
 
-class FontDictionary_WidthsArray extends BaseArray
+class FontDictionary_WidthsArray extends FullArray
 {
     public function __construct(InternalState $internalState, ?PDFObjectArray $src = null)
     {

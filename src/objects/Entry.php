@@ -315,7 +315,7 @@ class Entry
                 case self::ARRAY:
                     if (is_array($val)) {
                         throw new EntrySetValueException('TODO: Array ancora da implementare!!!.');
-                    } else {
+                    } else if (is_object($val)){
                         $key = array_key_first($sub);
                         if (get_class($val) === $key) {
                             $this->value_type = self::ARRAY;
@@ -328,10 +328,13 @@ class Entry
 
                 case self::BOOLEAN:
                     //print 'Valore da convertire in boolean: ' . print_r($val, true) . PHP_EOL;
-                    $this->value_type = self::BOOLEAN;
-                    $this->value_inline = $sub;
-                    $this->value = boolval($val);
-                    return;
+                    if (is_bool($val)) {
+                        $this->value_type = self::BOOLEAN;
+                        $this->value_inline = $sub;
+                        $this->value = boolval($val);
+                        return;
+                    }
+                    break;
 
                 case self::BYTE_STRING:
                     //print 'Valore da convertire in string: ' . print_r($val, true) . PHP_EOL;
@@ -350,7 +353,7 @@ class Entry
                     break;
 
                 case self::DICTIONARY:
-                    if ($sub) {
+                    if ($sub && is_object($val)) {
                         $cnVal = get_class($val);
                         foreach ($sub as $key => $il) {
                             if ($cnVal == $key) {
@@ -365,10 +368,13 @@ class Entry
 
                 case self::INTEGER:
                     //print 'Valore da convertire in integer: ' . print_r($val, true) . PHP_EOL;
-                    $this->value_type = self::INTEGER;
-                    $this->value_inline = $sub;
-                    $this->value = intval($val);
-                    return;
+                    if (is_integer($val) || is_float($val)) {
+                        $this->value_type = self::INTEGER;
+                        $this->value_inline = $sub;
+                        $this->value = intval($val);
+                        return;
+                    }
+                    break;
 
                 case self::NAME:
                     //print 'Valore da convertire in name: ' . print_r($val, true) . PHP_EOL;
@@ -379,10 +385,13 @@ class Entry
 
                 case self::NUMBER:
                     //print 'Valore da convertire in number: ' . print_r($val, true) . PHP_EOL;
-                    $this->value_type = self::NUMBER;
-                    $this->value_inline = $sub;
-                    $this->value = floatval($val);
-                    return;
+                    if (is_integer($val) || is_float($val)) {
+                        $this->value_type = self::NUMBER;
+                        $this->value_inline = $sub;
+                        $this->value = floatval($val);
+                        return;
+                    }
+                    break;
 
                 case self::RECTANGLE:
                     if ($val instanceof Rectangle) {
@@ -419,6 +428,32 @@ class Entry
 
                 default:
                     throw new EntrySetValueException('unknown value type.' . $t);
+            }
+        }
+
+        // rifaccio il giro convertendo i valori non strict
+        foreach ($this->type as $t => $sub) {
+            switch ($t) {
+                case self::BOOLEAN:
+                    //print 'Valore da convertire in boolean: ' . print_r($val, true) . PHP_EOL;
+                    $this->value_type = self::BOOLEAN;
+                    $this->value_inline = $sub;
+                    $this->value = boolval($val);
+                    return;
+
+                case self::INTEGER:
+                    //print 'Valore da convertire in integer: ' . print_r($val, true) . PHP_EOL;
+                    $this->value_type = self::INTEGER;
+                    $this->value_inline = $sub;
+                    $this->value = intval($val);
+                    return;
+
+                case self::NUMBER:
+                    //print 'Valore da convertire in number: ' . print_r($val, true) . PHP_EOL;
+                    $this->value_type = self::NUMBER;
+                    $this->value_inline = $sub;
+                    $this->value = floatval($val);
+                    return;
             }
         }
 

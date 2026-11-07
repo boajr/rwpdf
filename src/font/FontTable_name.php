@@ -79,6 +79,10 @@ class FontTable_name extends FontTable
                                     if (array_key_exists("UHC", $this->system_encodings))
                                         $encoding = "UHC";
                                     break;
+                                case 6:
+                                    if (array_key_exists("CP1361", $this->system_encodings))
+                                        $encoding = "CP1361";
+                                    break;
                                 default:
                                     if (array_key_exists("UTF-16", $this->system_encodings))
                                         $encoding = "UTF-16";
@@ -101,19 +105,29 @@ class FontTable_name extends FontTable
                     $str[$nr->platformID][$nr->encodingID][$nr->languageID] = $nr->string;
 
 
-                    //print str_pad($nameID, 2, ' ', STR_PAD_LEFT) . ' - ' . $nr->platformID . ' - ' . $nr->encodingID . ' - ' . str_pad($nr->languageID, 4, ' ', STR_PAD_LEFT) . ' - ' . $nr->string . PHP_EOL;
+                    //echo str_pad($nameID, 2, ' ', STR_PAD_LEFT) . ' - ' . $nr->platformID . ' - ' . $nr->encodingID . ' - ' . str_pad($nr->languageID, 4, ' ', STR_PAD_LEFT) . ' - ' . $nr->string . PHP_EOL;
                 }
             }
 
-            // assegno alla stringa nell'ordine il 3-1-1033 (windows english), 1-0-0 (mac english), la prima che inizia per 3, la prima che inizia con 1, la prima che inizia con 0
-            if ($str[3] ?? false) {
-                if ($str[3][1][1033] ?? false)
-                    $this->strings[$nameID] = $str[3][1][1033];
-                else
-                    $this->strings[$nameID] = $this->my_array_first($this->my_array_first($str[3]));
-            } else if ($str[1] ?? false) {
-                $this->strings[$nameID] = $this->my_array_first($this->my_array_first($str[1]));
-            } else
+            // windows english, unicode, mac english, windows, mac
+            // 3-10-1033 (windows english)
+            // 3-1-1033 (windows english)
+            // 0-*-*
+            // 1-0-0 (mac english)
+            // 3-*-*
+            // 1-*-*
+
+            if ($str[3][10][1033] ?? false)
+                $this->strings[$nameID] = $str[3][10][1033];
+            elseif ($str[3][1][1033] ?? false)
+                $this->strings[$nameID] = $str[3][1][1033];
+            elseif ($str[0] ?? false)
+                $this->strings[$nameID] = $this->my_array_first($this->my_array_first($str[0]));
+            elseif ($str[1][0][0] ?? false)
+                $this->strings[$nameID] = $str[1][0][0];
+            elseif ($str[3] ?? false)
+                $this->strings[$nameID] = $this->my_array_first($this->my_array_first($str[3]));
+            else
                 $this->strings[$nameID] = $this->my_array_first($this->my_array_first($this->my_array_first($str)));
         }
 

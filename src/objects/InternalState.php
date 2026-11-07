@@ -339,13 +339,13 @@ class InternalState
      */
     public function shrinkResources()
     {
-        print 'TODO: creare una struttura con tutte le risorse usate dalle pagine e renderle univoche' . PHP_EOL;
+        echo 'TODO: creare una struttura con tutte le risorse usate dalle pagine e renderle univoche' . PHP_EOL;
         foreach ($this->resources as $k => $r) {
-            print $k . PHP_EOL;
+            echo $k . PHP_EOL;
             foreach ($r as $a => $b)
-                print '  ' . $a . ' ' . get_class($b) . PHP_EOL;
+                echo '  ' . $a . ' ' . get_class($b) . PHP_EOL;
         }
-        //print get_class($r) . PHP_EOL;
+        //echo get_class($r) . PHP_EOL;
         //print_r($resources);
     }
 
@@ -384,7 +384,7 @@ class InternalState
      */
     private function caricaFontsArray()
     {
-        $json = static::$fontpath . 'boapdf.json';
+        $json = static::$fontpath . 'rwpdf.json';
         if (is_file($json)) {
             $this->fonts_added = array_merge($this->std_14_fonts, json_decode(file_get_contents($json), true));
             return;
@@ -438,7 +438,7 @@ class InternalState
             throw new PDFException('File doesn\'t exist.');
 
         echo '***** InternalFont::createFromFile('.$file.');'.PHP_EOL;
-        $obj = InternalFont::createFromFile($this, $file);
+        $obj = InternalFont::createFromFile($this, new Font($file));
         [$fam, $sty, $wei] = $obj->getFamilyStyleWeight();
 
         if ($family)
@@ -552,10 +552,10 @@ class InternalState
 
             if (is_file($f)) {
         echo '***** InternalFont::createFromFile('.$f.');'.PHP_EOL;
-                $f = InternalFont::createFromFile($this, $f);
+                $f = InternalFont::createFromFile($this, new Font($f));
             }else{
         echo '***** InternalFont::createStandard14Font('.$f.');'.PHP_EOL;
-                $f = InternalFont::createStandard14Font($this, $f, null, null);
+                $f = InternalFont::createStandard14Font($this, $f);
             }
             $this->fonts_added[$this->fontFamily][$this->fontStyle][$this->fontWeight] = $f;
         }

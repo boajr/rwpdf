@@ -30,20 +30,20 @@ class FontTable_head extends FontTable
         parent::__construct($font, $offset, $length);
         $this->parse();
 
-        //print 'Length: ' . $length . PHP_EOL;
+        //echo 'Length: ' . $length . PHP_EOL;
 
-        //print 'magic number: ' . dechex($this->magicNumber) . PHP_EOL;
-        //print 'flags: ' . str_pad(decbin($this->flags), 16, '0', STR_PAD_LEFT) . PHP_EOL;
-        //print 'unitsPerEm: ' . $this->unitsPerEm . PHP_EOL;
-        //print 'created: ' . date('Y-m-d H:i:s', $this->created) . PHP_EOL;
-        //print 'modified: ' . date('Y-m-d H:i:s', $this->modified) . PHP_EOL;
-        //print 'xMin-xMax: [' . $this->xMin . ', ' . $this->xMax . ']' . PHP_EOL;
-        //print 'yMin-yMax: [' . $this->yMin . ', ' . $this->yMax . ']' . PHP_EOL;
-        //print 'macStyle: ' . str_pad(decbin($this->macStyle), 16, '0', STR_PAD_LEFT) . PHP_EOL;
+        //echo 'magic number: ' . dechex($this->magicNumber) . PHP_EOL;
+        //echo 'flags: ' . str_pad(decbin($this->flags), 16, '0', STR_PAD_LEFT) . PHP_EOL;
+        //echo 'unitsPerEm: ' . $this->unitsPerEm . PHP_EOL;
+        //echo 'created: ' . date('Y-m-d H:i:s', $this->created) . PHP_EOL;
+        //echo 'modified: ' . date('Y-m-d H:i:s', $this->modified) . PHP_EOL;
+        //echo 'xMin-xMax: [' . $this->xMin . ', ' . $this->xMax . ']' . PHP_EOL;
+        //echo 'yMin-yMax: [' . $this->yMin . ', ' . $this->yMax . ']' . PHP_EOL;
+        //echo 'macStyle: ' . str_pad(decbin($this->macStyle), 16, '0', STR_PAD_LEFT) . PHP_EOL;
 
-        //print 'lowestRecPPEM: ' . $this->lowestRecPPEM . PHP_EOL;
-        //print 'fontDirectionHint: ' . $this->fontDirectionHint . PHP_EOL;
-        //print 'indexToLocFormat: ' . $this->indexToLocFormat . PHP_EOL;
-        //print 'glyphDataFormat: ' . $this->glyphDataFormat . PHP_EOL . PHP_EOL;
+        //echo 'lowestRecPPEM: ' . $this->lowestRecPPEM . PHP_EOL;
+        //echo 'fontDirectionHint: ' . $this->fontDirectionHint . PHP_EOL;
+        //echo 'indexToLocFormat: ' . $this->indexToLocFormat . PHP_EOL;
+        //echo 'glyphDataFormat: ' . $this->glyphDataFormat . PHP_EOL . PHP_EOL;
     }
 }

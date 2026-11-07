@@ -218,7 +218,7 @@ use Boajr\PDF\Parser\PDFObjectDictionary;
 //         //$this->array[3]->setValue($tintTransform);
 
 //         foreach ($tintTransform->GetFinalValue() as $k => $v) {
-//             print $k . PHP_EOL;
+//             echo $k . PHP_EOL;
 //         }
 
 //         //print_r($tintTransform->GetFinalValue());

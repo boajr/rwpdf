@@ -272,7 +272,7 @@ class PDFObjectDictionary implements IPDFObject, ArrayAccess, Countable, Iterato
                 //    return $str;
 
                 //case 'DCTDecode':
-                //    print 'DCTDecode' . PHP_EOL;
+                //    echo 'DCTDecode' . PHP_EOL;
                 //    return $str;
 
                 //case 'JPXDecode':

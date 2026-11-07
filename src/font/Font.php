@@ -9,6 +9,7 @@
 
 namespace Boajr\PDF\font;
 
+use stdClass;
 
 class Font
 {
@@ -52,6 +53,8 @@ class Font
 
     public ?bool $shrinkable = null;
 
+    public ?stdClass $fontDescriptorData = null;
+
     // Non vado in ordine di "peso" perché altrimenti extrabold verrebbe
     // riconosciuto come bold
     private const weights = [
@@ -88,6 +91,8 @@ class Font
 
     private ?int $unitsPerEm = null;
 
+    private array $charWidths = [];
+
 
 
 
@@ -98,6 +103,7 @@ class Font
     {
         if (is_file($file_or_data))
             $this->file = @fopen($file_or_data, 'rb');
+        $this->end_of_file = filesize($file_or_data);
         if (!$this->file) {
             $this->memory = $file_or_data;
             $this->end_of_file = strlen($file_or_data);
@@ -114,7 +120,7 @@ class Font
                 for ($i = 0; $i < $this->header['numTables']; ++$i) {
                     $t = $this->Read(4);
 
-                    print ($i ? ' ' : '') . $t;
+                    echo ($i ? ' ' : '') . $t;
 
                     if ($t == 'fvar')
                         throw new FontException('La lettura dei font variabili non è ancora supportata');
@@ -123,7 +129,7 @@ class Font
 
                     $this->tableRecords[$t] = unpack('Ntag/NcheckSum/Noffset/Nlenght', $t . $this->read(12));
                 }
-                print PHP_EOL;
+                echo PHP_EOL;
                 break;
 
             //case "wOFF":
@@ -148,7 +154,7 @@ class Font
         // estraggo dall'header la unitsPerEm
 
         /** @var FontTable_head $head */
-        $head = array_key_exists('head', $this->tableRecords) ? $this->readTable('head') : null;
+        $head = $this->readTable('head');
         if (!$head)
             throw new FontException('missing \'head\' table');
         $this->unitsPerEm = $head->unitsPerEm;
@@ -156,19 +162,27 @@ class Font
         // provo a vedere se dalla tabella OS/2 riesco ad estrarre lo style, 
         // la larghezza e se il font può essere incluso nel pdf
 
+        /** @var FontTable_hhea $hhea */
+        $hhea = $this->readTable('hhea');
+
+        /** @var FontTable_hmtx $hmtx */
+        $hmtx = $this->readTable('hmtx');
+
         /** @var FontTable_OS2 $os2 */
-        $os2 = array_key_exists('OS/2', $this->tableRecords) ? $this->readTable('OS/2') : null;
+        $os2 = $this->readTable('OS/2');
 
         /** @var FontTable_name $name */
-        $name = array_key_exists('name', $this->tableRecords) ? $this->readTable('name') : null;
+        $name = $this->readTable('name');
         if (!$name)
             throw new FontException('missing \'name\' table');
+
+        /** @var FontTable_post $post */
+        $post = $this->readTable('post');
 
         if ($os2) {
             $this->weight = $os2->version == 0 && $os2->usWeightClass > 0 && $os2->usWeightClass < 10 ? static::apple_weight[$os2->usWeightClass] : $os2->usWeightClass;
             $this->style = $os2->fsSelection & 1 ? ($os2->version > 3 && ($os2->fsSelection & 512) ? 'oblique' : 'italic') : 'normal';
 
-            //print 'usWidthClass: ' . $os2->usWidthClass . PHP_EOL;
             if ($os2->fsType & 1024 == 0) {
                 switch ($os2->fsType & 14) {
                     case 0: // Controllo completo sul font
@@ -226,6 +240,104 @@ class Font
             $this->family = $name->getString(16);
         if (!$this->family)
             $this->family = $name->getString(1);
+
+        // estrazione dei dati da scrive in un font descriprion data
+        $k = 1000 / $this->unitsPerEm;
+
+        $fdd = new stdClass;
+        $fdd->FontName = $name ? $name->getString(6) : null;
+        //$fdd->FontFamily = $this->family;
+        // 'FontStretch' => $this->FontDescriptor->FontStretch,
+        //$fdd->FontWeight = $this->weight;
+
+        if ($os2) {
+            $sFamily = $os2->sFamilyClass >> 8;
+            $isSerif = ($sFamily > 0 && $sFamily <= 5) || $sFamily == 7;
+            $isScript = $sFamily == 10;
+            $isSymbolic = ($os2->ulCodePageRange1 & 0x80000000) !== 0 || $sFamily == 12;
+        } else {
+            $isSerif = false;
+            $isScript = false;
+            $isSymbolic = false;
+        }
+
+        $fdd->Flags =
+            ($post && $post->isFixedPitch ? 1 : 0) +   // bit  1: FixedPitch (all glyphs have the same width)
+            ($isSerif ? 2 : 0) +                       // bit  2: Serif (glyphs have serifs)
+            ($isSymbolic ? 4 : 32) +                   // bit  3: Symbolic (font contains glyphs outside the Standard Latin character set)
+            // bit  6: Nonsymbolic (font uses the Standard Latin character set or a subset of it)
+            ($isScript ? 8 : 0) +                      // bit  4: Script (glyphs resemble cursive handwriting)
+            ($this->style != 'normal' ? 64 : 0);       // bit  7: Italic (glyphs have dominant vertical strokes that are slanted)
+        // 17 AllCap Font contains no lowercase letters; typically used for display purposes, such as for titles or headlines.
+        // 18 SmallCap Font contains both uppercase and lowercase letters. The uppercase letters are similar to those in the regular version of the same typeface family. The glyphs for the lowercase letters have the same shapes as the corresponding uppercase letters, but they are sized and their proportions adjusted so that they have the same size and stroke weight as lowercase glyphs in the same typeface family.
+        // 19 ForceBold See description after Note 1 in this subclause.
+
+        $fdd->FontBBox = (object)[
+            'xMin' => $head ? round($k * $head->xMin) : null,
+            'yMin' => $head ? round($k * $head->yMin) : null,
+            'xMax' => $head ? round($k * $head->xMax) : null,
+            'yMax' => $head ? round($k * $head->yMax) : null,
+        ];
+        $fdd->ItalicAngle = $post ? $post->italicAngle : null;
+
+        // meglio calcolarli dalle lettere p e d ???
+        if ($os2) {
+            if ($os2->fsSelection & 128) {
+                $fdd->Ascent = round($k * $os2->sTypoAscender);
+                $fdd->Descent = round($k * $os2->sTypoDescender);
+            } else {
+                $fdd->Ascent = round($k * $os2->usWinAscent);
+                $fdd->Descent = round($k * $os2->usWinDescent);
+            }
+        } else if ($hhea) {
+            $fdd->Ascent = round($k * $hhea->ascender);
+            $fdd->Descent = round($k * $hhea->descender);
+        } else {
+            $fdd->Ascent = null;
+            $fdd->Descent = null;
+
+            echo 'A ' . round($k * $os2?->sTypoAscender) . ' ' . round($k * $hhea->ascender) . PHP_EOL;
+
+            echo 'Ascendente d: ' . round($this->ascendenteFont('d') * $k) . PHP_EOL;
+            echo 'Ascendente b: ' . round($this->ascendenteFont('b') * $k) . PHP_EOL;
+            echo 'Ascendente f: ' . round($this->ascendenteFont('f') * $k) . PHP_EOL;
+            echo 'Ascendente h: ' . round($this->ascendenteFont('h') * $k) . PHP_EOL;
+            echo 'Ascendente k: ' . round($this->ascendenteFont('k') * $k) . PHP_EOL;
+            echo 'Ascendente l: ' . round($this->ascendenteFont('l') * $k) . PHP_EOL;
+            echo 'Discendente p: ' . round($this->discendenteFont('p') * $k) . PHP_EOL;
+            echo 'Discendente g: ' . round($this->discendenteFont('g') * $k) . PHP_EOL;
+            echo 'Discendente j: ' . round($this->discendenteFont('j') * $k) . PHP_EOL;
+            echo 'Discendente q: ' . round($this->discendenteFont('q') * $k) . PHP_EOL;
+            echo 'Discendente y: ' . round($this->discendenteFont('y') * $k) . PHP_EOL;
+        }
+
+        // 'Leading' => $this->FontDescriptor->Leading,
+        $fdd->CapHeight = $os2 ? round($k * $os2->sCapHeight) : null;
+        if (!$fdd->CapHeight) {
+            // (Consigliato):Se stai effettuando il parsing del file TrueType,
+            // leggi l'altezza massima (il valore yMax) della sola lettera H
+            // maiuscola nella tabella glyf. Ricordati di normalizzarla su base
+            // 1000. Questo è il /CapHeight perfetto e matematicamente
+            // inattaccabile.
+            $h = 0;
+            foreach (['H', 'I'] as $c) {
+                $h = $this->altezzaFont($c);
+                if ($h)
+                    break;
+            }
+            $fdd->CapHeight = $h ? round($k * $h) : null;
+        }
+
+        // 'XHeight' => round(),
+        $fdd->StemV = round($this->weight / 5);
+        // 'StemH' => $this->FontDescriptor->StemH,
+        // 'AvgWidth' => $this->FontDescriptor->AvgWidth,
+        // 'MaxWidth' => $this->FontDescriptor->MaxWidth,
+
+        // è  obbligatorio metterla per la conformità PDF/A
+        $fdd->MissingWidth = $hmtx ? round($k * $hmtx->getGlyphWidth(0)) : null;
+
+        $this->fontDescriptorData = $fdd;
     }
 
     public function __destruct()
@@ -261,14 +373,16 @@ class Font
         return fseek($this->file, $offset, $whence);
     }
 
-    //private function Skip(int $n)
+    //public function skip(int $n): bool
     //{
-    //    if ($this->memory) {
-    //        $this->pos += $n;
-    //        return;
-    //    }
+    //    if ($n <= 0)
+    //        return false;
     //
-    //    fseek($this->file, $n, SEEK_CUR);
+    //    if ($this->memory)
+    //        $this->pos += $n;
+    //    else
+    //        fseek($this->file, $n, SEEK_CUR);
+    //    return true;
     //}
 
     public function read(int $length): string|false
@@ -293,6 +407,9 @@ class Font
 
     public function readTable(string $type)
     {
+        if (!array_key_exists($type, $this->tableRecords))
+            return null;
+
         if (!array_key_exists($type, $this->tables)) {
             $record = $this->tableRecords[$type] ?? null;
             if (!$record)
@@ -314,7 +431,7 @@ class Font
      */
     public function getUnderlineMeasures(): ?array
     {
-        $post = array_key_exists('post', $this->tableRecords) ? $this->readTable('post') : null;
+        $post = $this->readTable('post');
         if ($post) {
             $upe = $this->unitsPerEm;
             return [$post->underlinePosition / $upe, $post->underlineThickness / $upe];
@@ -329,11 +446,157 @@ class Font
      */
     public function getStrikeoutMeasures(): ?array
     {
-        $os2 = array_key_exists('OS/2', $this->tableRecords) ? $this->readTable('OS/2') : null;
+        $os2 = $this->readTable('OS/2');
         if ($os2) {
             $upe = $this->unitsPerEm;
             return [$os2->yStrikeoutPosition / $upe, $os2->yStrikeoutSize / $upe];
         }
         return null;
+    }
+
+    private function altezzaFont(string $c): int
+    {
+        // trovo su che carattere è mappata la lettera
+        $cmap = $this->readTable('cmap');
+        $ord = $cmap->getCharPosition($c);
+        if (!$ord)
+            return 0;
+
+        // se ho la tabella glyf estraggo da qui l'altezza del font
+        $glyf = $this->readTable('glyf');
+        if ($glyf) {
+            $glyph = $glyf->getGlyphHeader($ord);
+            return $glyph ? $glyph->yMax - $glyph->yMin : 0;
+        }
+
+        //$cff = $this->readTable('CFF');
+        //if ($cff) {
+        //    return 2;
+        //}
+
+        //$cff2 = $this->readTable('CFF');
+        //if ($cff2) {
+        //    return 3;
+        //}
+
+        return 0;
+    }
+
+    private function ascendenteFont(string $c): int
+    {
+        // trovo su che carattere è mappata la lettera
+        $cmap = $this->readTable('cmap');
+        $ord = $cmap->getCharPosition($c);
+        if (!$ord)
+            return 0;
+
+        // se ho la tabella glyf estraggo da qui l'altezza del font
+        $glyf = $this->readTable('glyf');
+        if ($glyf) {
+            $glyph = $glyf->getGlyphHeader($ord);
+            return $glyph ? $glyph->yMax : 0;
+        }
+
+        $cff = $this->readTable('CFF ');
+        if ($cff) {
+            die('OKKKKKK');
+            return 2;
+        }
+
+        //$cff2 = $this->readTable('CFF2');
+        //if ($cff2) {
+        //    return 3;
+        //}
+
+        return 0;
+    }
+
+    private function discendenteFont(string $c): int
+    {
+        // trovo su che carattere è mappata la lettera
+        $cmap = $this->readTable('cmap');
+        $ord = $cmap->getCharPosition($c);
+        if (!$ord)
+            return 0;
+
+        // se ho la tabella glyf estraggo da qui l'altezza del font
+        $glyf = $this->readTable('glyf');
+        if ($glyf) {
+            $glyph = $glyf->getGlyphHeader($ord);
+            return $glyph ? $glyph->yMin : 0;
+        }
+
+        //$cff = $this->readTable('CFF');
+        //if ($cff) {
+        //    return 2;
+        //}
+
+        //$cff2 = $this->readTable('CFF');
+        //if ($cff2) {
+        //    return 3;
+        //}
+
+        return 0;
+    }
+
+    public function appendMissingFontData(object $data)
+    {
+        foreach (get_object_vars($this->fontDescriptorData) as $k => $v)
+            if ($v === null) {
+                if ($k == 'FontName') {
+                    $name = $data->FontDescriptor->FontName;
+                    $this->fontDescriptorData->FontName = $name[6] == '+' ? substr($name, 7) : $name;
+                } else if ($k == 'FontBBox') {
+                    $rect = $data->FontDescriptor->FontBBox;
+                    $this->fontDescriptorData->FontBBox = (object)[
+                        'xMin' => $rect->left,
+                        'yMin' => $rect->top,
+                        'xMax' => $rect->right,
+                        'yMax' => $rect->bottom,
+                    ];
+                } else
+                    $this->fontDescriptorData->$k = $data->FontDescriptor->$k;
+            }
+    }
+
+    public function getCharWidth(string $char): ?int
+    {
+        if (!array_key_exists($char, $this->charWidths)) {
+            $cmap = $this->readTable('cmap');
+            $ord = $cmap->getCharPosition($char);
+            if ($ord) {
+                $hmtx = $this->readTable('hmtx');
+                $this->charWidths[$char] = $hmtx->getGlyphWidth($ord);
+            } else
+                $this->charWidths[$char] = null;
+        }
+        return $this->charWidths[$char];
+    }
+
+    public function isTrueType(): bool
+    {
+        return $this->readTable('glyf') !== null;
+    }
+
+    public function toFile(?array $usedChars = null): string
+    {
+
+$usedChars = null;
+
+        // se non posso shrinkare il file o se devo tenere tutti i caratteri,
+        // restituisco il file originale
+        if ($usedChars === null || !$this->shrinkable) {
+            if ($this->memory)
+                return $this->memory;
+
+            fseek($this->file, 0);
+            return fread($this->file, $this->end_of_file);
+        }
+
+        if ($this->readTable('glyf')) {
+        }
+
+
+        throw new FontException('Something strange appened in file shrink');
     }
 }
