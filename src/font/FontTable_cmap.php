@@ -206,35 +206,22 @@ class FontTable_cmap extends FontTable
                 return $glyphIndexArray;
 
             case 12:
-                /*
-          $font->readUInt16();
+                $this->seek($offset + 4);
+                $subtable = (object)unpack('Nlength/Nlanguage/Nngroups', $this->read(12));
 
-          $subtable += $font->unpack(self::$subtable_v12_format);
+                $glyphIndexArray = [];
+                for ($p = 0; $p < $subtable->ngroups; $p++) {
+                    $startCode = $this->readUInt32();
+                    $endCode = $this->readUInt32();
+                    $startGlyphCode = $this->readUInt32();
 
-          $glyphIndexArray = array();
-          $endCodes = array();
-          $startCodes = array();
+                    for ($c = $startCode; $c <= $endCode; $c++) {
+                        $glyphIndexArray[$c] = $startGlyphCode;
+                        $startGlyphCode++;
+                    }
+                }
 
-          for ($p = 0; $p < $subtable['ngroups']; $p++) {
-
-            $startCode = $startCodes[] = $font->readUInt32();
-            $endCode = $endCodes[] = $font->readUInt32();
-            $startGlyphCode = $font->readUInt32();
-
-            for ($c = $startCode; $c <= $endCode; $c++) {
-              $glyphIndexArray[$c] = $startGlyphCode;
-              $startGlyphCode++;
-            }
-          }
-
-          $subtable += array(
-            "startCode" => $startCodes,
-            "endCode" => $endCodes,
-            "glyphIndexArray" => $glyphIndexArray,
-          );
-          break;
-          */
-                throw new FontException('TODO: leggere il formato 12');
+                return $glyphIndexArray;
         }
 
         return [];
@@ -342,7 +329,8 @@ class FontTable_cmap extends FontTable
     /**
      * restituisce la posizione del carattere richiesto o 0 se il carattere non è presente
      */
-    public function getCharPosition(string $string, ?string $encoding = null): int {
+    public function getCharPosition(string $string, ?string $encoding = null): int
+    {
         $ord = mb_ord($string, $encoding);
         return $this->unicodeCharMap[$ord] ?? 0;
     }

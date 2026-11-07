@@ -137,4 +137,9 @@ abstract class FontTable
         }
         return $vals;
     }
+
+    public function readUInt32(): int
+    {
+        return unpack("N", $this->read(4))[1];
+    }
 }
